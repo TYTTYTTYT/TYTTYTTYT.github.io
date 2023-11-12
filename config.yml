@@ -22,9 +22,8 @@ params:
     enabled: true
     title: TensorClash
     subtitle: Wellcome to Yintao's Space!
-    imageUrl: >-
-      https://images.google.co.uk/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png
-    imageTitle: google
+    imageUrl: /logo.png
+    imageTitle: logo
     imageWidth: 120
     imageHeight: 120
     # buttons:
