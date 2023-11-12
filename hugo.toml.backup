@@ -1,0 +1,37 @@
+baseURL = "https://example.org/"
+languageCode = "en-us"
+title = "Yintao's Blog"
+theme = "PaperMod"
+
+[params.profileMode]
+enabled = true
+title = "Hi"
+subtitle = "This is subtitle"
+imageUrl = "https://images.google.co.uk/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png"
+imageTitle = "google"
+imageWidth = 120
+imageHeight = 120
+
+  [[params.profileMode.buttons]]
+  name = "Archive"
+
+  [[params.profileMode.buttons]]
+  url = "/archive"
+
+  [[params.profileMode.buttons]]
+  name = "Github"
+
+  [[params.profileMode.buttons]]
+  url = "https://github.com/"
+
+[[params.socialIcons]]
+name = "<platform>"
+
+[[params.socialIcons]]
+url = "<link>"
+
+[[params.socialIcons]]
+name = "<platform 2>"
+
+[[params.socialIcons]]
+url = "<link2>"

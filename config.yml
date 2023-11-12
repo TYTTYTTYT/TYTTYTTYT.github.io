@@ -1,0 +1,88 @@
+baseURL: 'https://example.org/'
+languageCode: en-us
+title: TensorClash
+theme: PaperMod
+summaryLength: 25
+comments: true
+taxonomies:
+  category: categories
+  tag: tags
+  author: author
+params:
+  comments: true
+  ShowPostNavLinks: true
+  ShowCodeCopyButtons: true
+  ShowToc: true
+  TocOpen: false
+  ShowReadingTime: true
+  math: true
+  ShowShareButtons: true
+  defaultTheme: auto # to switch between dark or light according to browser theme
+  profileMode:
+    enabled: true
+    title: TensorClash
+    subtitle: Wellcome to Yintao's Space!
+    imageUrl: >-
+      https://images.google.co.uk/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png
+    imageTitle: google
+    imageWidth: 120
+    imageHeight: 120
+    # buttons:
+    #   - name: Posts
+    #     url: "/posts"
+    #   - name: Publications
+    #     url: /pubs
+    #   - name: About me
+    #     url: /about/
+  socialIcons:
+    - name: Github
+      url: 'https://github.com/TYTTYTTYT'
+    - name: LinkedIn
+      url: 'https://uk.linkedin.com/in/yintao-tai'
+outputs:
+    home:
+        - HTML
+        - RSS
+        - JSON # is necessary
+menu:
+  main:
+    - name: Yintao
+      url: "/about/"
+    - name: Posts
+      url: "/posts"
+    - name: Pubs
+      url: "/pubs"
+    - name: Search
+      url: "/search/"
+    - name: Projects
+      url: "/projects"
+    - name: Tags
+      url: "/tags"
+markup:
+  goldmark:
+    renderer:
+      unsafe: true
+defaultContentLanguage: en
+defaultContentLanguageInSubdir: true
+languages:
+  en:
+    contentDir: content/en
+    disabled: false
+    languageCode: en-US
+    languageDirection: ltr
+    languageName: English
+    params:
+      subtitle: Reference, Tutorials, and Explanations
+    title: TensorClash
+    weight: 2
+  cn:
+    contentDir: content/cn
+    disabled: false
+    languageCode: cn
+    languageDirection: ltr
+    languageName: Chinese
+    params:
+      subtitle: Referenz, Tutorials und Erklärungen
+    title: TensorClash
+    weight: 1
+  
