@@ -1,4 +1,4 @@
-baseURL: 'https://example.org/'
+baseURL: 'https://tensorclash.com/'
 languageCode: en-us
 title: TensorClash
 theme: PaperMod
@@ -9,6 +9,8 @@ taxonomies:
   tag: tags
   author: author
 params:
+  assets: 
+    favicon: images/logo.png
   comments: true
   ShowPostNavLinks: true
   ShowCodeCopyButtons: true
@@ -22,7 +24,7 @@ params:
     enabled: true
     title: TensorClash
     subtitle: Wellcome to Yintao's Space!
-    imageUrl: /logo.png
+    imageUrl: images/logo.png
     imageTitle: logo
     imageWidth: 120
     imageHeight: 120
