@@ -63,27 +63,26 @@ markup:
   goldmark:
     renderer:
       unsafe: true
-defaultContentLanguage: en
+defaultContentLanguage: english
 defaultContentLanguageInSubdir: true
 languages:
-  en:
+  english:
     contentDir: content/en
     disabled: false
     languageCode: en-US
     languageDirection: ltr
     languageName: English
-    params:
-      subtitle: Reference, Tutorials, and Explanations
+    # params:
+    #   subtitle: Reference, Tutorials, and Explanations
     title: TensorClash
     weight: 2
-  cn:
+  中文:
     contentDir: content/cn
     disabled: false
-    languageCode: cn
+    languageCode: zh-cn
     languageDirection: ltr
     languageName: Chinese
-    params:
-      subtitle: Referenz, Tutorials und Erklärungen
+    # params:
+    #   subtitle: Referenz, Tutorials und Erklärungen
     title: TensorClash
     weight: 1
-  
