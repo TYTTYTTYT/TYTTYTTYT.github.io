@@ -1,7 +1,7 @@
----
-title: My Go Journey
-date: 2017-03-23
-publishdate: 2017-03-24
----
++++
+title = 'Posts'
+date = 2023-11-19T15:24:09Z
+draft = false
++++
 
-Anything goes here
+A notebook for record and sharing.
