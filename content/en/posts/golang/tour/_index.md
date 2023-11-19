@@ -1,7 +1,7 @@
 +++
 title = 'A Tour of Go'
 date = 2023-11-19T17:13:14Z
-draft = False
+draft = false
 +++
 
 A quick review of Go syntax.
