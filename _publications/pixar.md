@@ -5,9 +5,7 @@ category: conferences
 permalink: 'https://aclanthology.org/2024.findings-acl.874.pdf'
 excerpt: 'We present PIXAR, the first pixel-based autoregressive LLM that understands and generates text-in-images, reaching GPT-2–level performance without relying on symbolic tokenization.'
 date: 2024
-# venue: 'Findings'
 paperurl: 'https://aclanthology.org/2024.findings-acl.874/'
-# slidesurl: ""
 citation: 'Yintao Tai, Xiyang Liao, Alessandro Suglia, and Antonio Vergari. 2024. PIXAR: Auto-Regressive Language Modeling in Pixel Space. In Findings of the Association for Computational Linguistics: ACL 2024, pages 14673–14695, Bangkok, Thailand. Association for Computational Linguistics.'
 ---
 
