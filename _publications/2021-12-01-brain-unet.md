@@ -2,10 +2,10 @@
 title: "Brain tumor segmentation with attention-based U-Net"
 collection: publications
 category: conferences
-permalink: 'https://www.spiedigitallibrary.org/conference-proceedings-of-spie/12079/120790N/Brain-tumor-segmentation-with-attention-based-U-Net/10.1117/12.2623112.full?tab=ArticleLink'
+permalink: /publication/2021-12-01-brain-unet
 excerpt: 'We present an attention-enhanced U-Net model integrating Squeeze-and-Excitation and CBAM modules to improve MRI brain tumor segmentation, delivered with an app featuring text-to-speech and chatbot support.'
 date: 2021-12-01
-paperurl: /files/brain_unet.pdf
+paperurl: 'https://www.spiedigitallibrary.org/conference-proceedings-of-spie/12079/120790N/Brain-tumor-segmentation-with-attention-based-U-Net/10.1117/12.2623112.full?tab=ArticleLink'
 citation: 'Tuofu Li, Javin Jia Liu, Yintao Tai, Yuxuan Tian, "Brain tumor segmentation with attention-based U-Net," Proc. SPIE 12079, Second IYSF Academic Symposium on Artificial Intelligence and Computer Engineering, 120790N (1 December 2021); https://doi.org/10.1117/12.2623112'
 bibtexurl: 'https://tyttyttyt.github.io/files/brain_unet.bib'
 venue: 'SPIE'
