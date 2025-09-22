@@ -9,7 +9,7 @@
 # Basic Site Settings
 locale                   : "en-US"
 site_theme               : "default" # Currently available options are "default", "air"
-title                    : "Cool Thinngs here!"
+title                    : "Cool things here!"
 title_separator          : "-"
 name                     : &name "Yintao Tai"
 description              : &description "Your Name's academic portfolio"   # Update this with a general description of your site, this is the default if not overridden by a page
@@ -29,7 +29,7 @@ author:
   bio              : "PhD student in NLP, focusing on multimodal large language models."
   location         : "Edinburgh, United Kingdom"
   employer         : "University of Edinburgh"
-  uri              : # URL
+  uri              : "https://taiyintao.me" # URL
   email            : "tai.yintao@gmail.com" 
 
   # Academic websites
@@ -68,7 +68,7 @@ author:
   medium           : # URL
   pinterest        : # Username
   soundcloud       : # Username
-  steam            : # Username
+  steam            : "hisfather007" # Username
   telegram         : # URL
   tumblr           : # Username
   twitter          : "YTai37094996" # Username for X / Twitter
