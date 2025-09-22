@@ -1,12 +1,13 @@
 ---
-title: "PIXAR: Auto-Regressive Language Modeling in Pixel Space"
+title: "Paper Title Number 4"
 collection: publications
 category: conferences
-permalink: 'https://aclanthology.org/2024.findings-acl.874.pdf'
-excerpt: 'We present PIXAR, the first pixel-based autoregressive LLM that understands and generates text-in-images, reaching GPT-2–level performance without relying on symbolic tokenization.'
-date: "2024"
-paperurl: 'https://aclanthology.org/2024.findings-acl.874/'
-citation: 'Yintao Tai, Xiyang Liao, Alessandro Suglia, and Antonio Vergari. 2024. PIXAR: Auto-Regressive Language Modeling in Pixel Space. In Findings of the Association for Computational Linguistics: ACL 2024, pages 14673–14695, Bangkok, Thailand. Association for Computational Linguistics.'
+permalink: /publication/2024-02-17-paper-title-number-4
+excerpt: 'This paper is about fixing template issue #693.'
+date: 2024-02-17
+venue: 'GitHub Journal of Bugs'
+paperurl: 'http://academicpages.github.io/files/paper3.pdf'
+citation: 'Your Name, You. (2024). &quot;Paper Title Number 3.&quot; <i>GitHub Journal of Bugs</i>. 1(3).'
 ---
 
-Recent work showed the possibility of building open-vocabulary large language models (LLMs) that directly operate on pixel representations. These models are implemented as autoencoders that reconstruct masked patches of rendered text.However, these pixel-based LLMs are limited to discriminative tasks (e.g., classification) and, similar to BERT, cannot be used to generate text.Therefore, they cannot be used for generative tasks such as free-form question answering. In this work, we introduce PIXAR, the first pixel-based autoregressive LLM that performs text generation. Consisting of only a decoder, PIXAR can perform free-form generative tasks while keeping the number of parameters on par with previous encoder-decoder models.Furthermore, we highlight the challenges of generating text as non-noisy images and show this is due to using a maximum likelihood objective. To overcome this problem, we propose an adversarial pretraining stage that improves the readability and accuracy of PIXAR by 8.1 on LAMBADA and 8.5 on bAbI— making it comparable to GPT-2 on text generation tasks.This paves the way to build open-vocabulary LLMs that operate on perceptual input only and calls into question the necessity of the usual symbolic input representation, i.e., text as (sub)tokens.
+The contents above will be part of a list of publications, if the user clicks the link for the publication than the contents of section will be rendered as a full page, allowing you to provide more information about the paper for the reader. When publications are displayed as a single page, the contents of the above "citation" field will automatically be included below this section in a smaller font.
