@@ -7,7 +7,7 @@ excerpt: 'We propose simulating natural language feedback for interactive semant
 date: 2023-05-14
 paperurl: 'https://aclanthology.org/2023.acl-long.177.pdf'
 citation: 'Hao Yan, Saurabh Srivastava, Yintao Tai, Sida I. Wang, Wen-tau Yih, and Ziyu Yao. 2023. Learning to Simulate Natural Language Feedback for Interactive Semantic Parsing. In Proceedings of the 61st Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers), pages 3149–3170, Toronto, Canada. Association for Computational Linguistics.'
-bibtexurl: 'http://tyttyttyt.github.io/files/nl_feedback_parser.bib'
+bibtexurl: 'https://tyttyttyt.github.io/files/nl_feedback_parser.bib'
 venue: 'ACL'
 ---
 
