@@ -7,6 +7,11 @@ redirect_from:
   - /about.html
 ---
 
+## Warning: This site is under construction!
+
+Bio
+======
+
 Yintao Tai is a PhD student in the DRNLP-CDT at the University of Edinburgh. He received his BSc in Electronics and Computer Science and his MSc in Computer Science, both from Edinburgh, where he developed a strong interest in combining natural language processing with computer vision.
 
 Prior to his PhD, he worked for two years at ByteDance as a machine learning engineer, where he developed methods to integrate multimodal understanding features into large-scale recommendation systems, which effectively improved user experience. This experience motivated his current research on multimodal learning, video understanding, and efficient methods for large-scale LLMs.
