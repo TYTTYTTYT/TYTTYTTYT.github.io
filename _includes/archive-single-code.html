@@ -1,0 +1,104 @@
+{% include base_path %}
+
+{% if post.id %}
+  {% assign title = post.title | markdownify | remove: "<p>" | remove: "</p>" %}
+{% else %}
+  {% assign title = post.title %}
+{% endif %}
+
+<div class="{{ include.type | default: "list" }}__item">
+  <article class="archive__item" itemscope itemtype="http://schema.org/CreativeWork">
+
+    <!-- 项目标题 -->
+    <h2 class="archive__item-title" itemprop="headline">
+      {% if post.project_page %}
+        <a href="{{ post.project_page }}" target="_blank" rel="noopener">{{ title }}</a>
+      {% else %}
+        <a href="{{ base_path }}{{ post.url }}" rel="permalink">{{ title }}</a>
+      {% endif %}
+    </h2>
+
+    <!-- Badges 区块 -->
+    <p class="project-badges">
+      {% if post.github_repo %}
+        <a href="https://github.com/{{ post.github_repo }}" target="_blank" rel="noopener">
+          <img alt="GitHub stars"
+               src="https://img.shields.io/github/stars/{{ post.github_repo }}?style=social"
+               height="20">
+        </a>
+        <a href="https://github.com/{{ post.github_repo }}/fork" target="_blank" rel="noopener">
+          <img alt="GitHub forks"
+               src="https://img.shields.io/github/forks/{{ post.github_repo }}?style=social"
+               height="20">
+        </a>
+        <a href="https://github.com/{{ post.github_repo }}" target="_blank" rel="noopener">
+          <img alt="GitHub license"
+               src="https://img.shields.io/github/license/{{ post.github_repo }}"
+               height="20">
+        </a>
+      {% endif %}
+
+      {% if post.huggingface_repo %}
+        <a href="https://huggingface.co/{{ post.huggingface_repo }}" target="_blank" rel="noopener">
+          <img alt="Hugging Face"
+               src="https://img.shields.io/badge/HuggingFace-Model-yellow?logo=huggingface"
+               height="20">
+        </a>
+      {% endif %}
+
+      {% if post.pypi_package %}
+        <a href="https://pypi.org/project/{{ post.pypi_package }}/" target="_blank" rel="noopener">
+          <img alt="PyPI"
+               src="https://img.shields.io/pypi/v/{{ post.pypi_package }}?color=blue&logo=pypi"
+               height="20">
+        </a>
+      {% endif %}
+
+      {% if post.conda_package %}
+        <a href="https://anaconda.org/{{ post.conda_package }}" target="_blank" rel="noopener">
+          <img alt="Conda"
+               src="https://img.shields.io/conda/v/{{ post.conda_package }}?logo=anaconda"
+               height="20">
+        </a>
+      {% endif %}
+
+      {% if post.docker_image %}
+        <a href="https://hub.docker.com/r/{{ post.docker_image }}" target="_blank" rel="noopener">
+          <img alt="Docker"
+               src="https://img.shields.io/docker/pulls/{{ post.docker_image }}?logo=docker"
+               height="20">
+        </a>
+      {% endif %}
+
+      {% if post.npm_package %}
+        <a href="https://www.npmjs.com/package/{{ post.npm_package }}" target="_blank" rel="noopener">
+          <img alt="npm"
+               src="https://img.shields.io/npm/v/{{ post.npm_package }}?logo=npm&color=cb3837"
+               height="20">
+        </a>
+      {% endif %}
+    </p>
+
+    <!-- Tags -->
+    {% if post.tags and post.tags != empty %}
+      <p class="page__taxonomy">
+        <strong>
+          <i class="fa fa-fw fa-tags" aria-hidden="true"></i>
+          {{ site.data.ui-text[site.locale].tags_label | default: "Tags:" }}
+        </strong>
+        {% for tag in post.tags %}
+          {% assign tag_slug = tag | slugify %}
+          <a class="tag" rel="tag" href="{{ '/tags/#' | append: tag_slug | relative_url }}">{{ tag }}</a>
+        {% endfor %}
+      </p>
+    {% endif %}
+
+    <!-- 摘要 -->
+    {% if post.excerpt %}
+      <p class="archive__item-excerpt code-excerpt" itemprop="description">
+        {{ post.excerpt | markdownify | strip_html }}
+      </p>
+    {% endif %}
+
+  </article>
+</div>

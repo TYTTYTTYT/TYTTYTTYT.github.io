@@ -41,3 +41,139 @@
     "vendor/font-awesome/solid",
     "vendor/font-awesome/brands"
 ;
+/* -------- Codes 页面专用样式 -------- */
+
+/* Excerpt 字体大小 & 自适应主题颜色 */
+.code-excerpt {
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--text-color);   /* 跟随主题变量 */
+  margin-top: 0.4rem;
+}
+
+/* Tag 按钮样式 */
+.page__taxonomy .tag {
+  display: inline-block;
+  margin: 0 0.3em 0.3em 0;
+  padding: 0.25em 0.6em;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #6b7280;             /* 灰色 */
+  background-color: #f9fafb;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.page__taxonomy .tag:hover {
+  background-color: #e5e7eb;
+  border-color: #9ca3af;
+  color: #4b5563;
+}
+
+/* Tag 索引表格样式 */
+.taxonomy__index a {
+  text-decoration: none;
+  background: #f3f4f6;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  padding: 0.3em 0.6em;
+  font-size: 0.85rem;
+  color: #4b5563;   /* 默认灰 */
+  transition: all 0.2s ease;
+}
+
+.taxonomy__index a:hover {
+  background: #e5e7eb;
+  border-color: #9ca3af;
+  color: #1f2937;   /* hover 深灰 */
+}
+
+.taxonomy__count {
+  color: #9ca3af;  /* 数字用更浅的灰 */
+}
+
+/* -------- Tag 索引表格样式 -------- */
+
+/* 去掉点号 + 一行排列 */
+.taxonomy__index {
+  list-style: none;   /* 去掉点号 */
+  padding-left: 0;    /* 去掉左缩进 */
+  margin: 1em 0 2em 0;
+  display: flex;      /* 横向布局 */
+  flex-wrap: wrap;    /* 自动换行 */
+}
+
+.taxonomy__index li {
+  margin: 0.3em 0.6em 0.3em 0;
+}
+
+/* 按钮样式 */
+.taxonomy__index a {
+  text-decoration: none;
+  background: #f3f4f6;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  padding: 0.25em 0.6em;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #6b7280;     /* 淡灰色文字 */
+  transition: all 0.2s ease;
+}
+
+.taxonomy__index a:hover {
+  background: #e5e7eb;
+  border-color: #9ca3af;
+  color: #374151;     /* hover 时稍深灰 */
+}
+
+/* 数量的颜色 */
+.taxonomy__count {
+  color: #9ca3af;     /* 更浅的灰，和文字区分开 */
+  margin-left: 0.25em;
+}
+
+/* -------- Badges 样式 -------- */
+.github-badges a {
+  text-decoration: none !important;  /* 去掉下划线 */
+}
+
+.github-badges img {
+  vertical-align: middle;   /* 对齐图标 */
+  margin-right: 0.4em;      /* 徽章之间留空 */
+}
+
+/* -------- Project badges 样式 -------- */
+.project-badges {
+  margin: 0.4em 0 0.6em 0;
+}
+
+.project-badges a {
+  text-decoration: none !important;
+  margin-right: 0.4em;
+  display: inline-block;
+  transition: transform 0.2s ease, filter 0.2s ease;
+}
+
+.project-badges img {
+  vertical-align: middle;
+  border: none;
+}
+
+/* Hover 动效：微微放大 + 提亮 */
+.project-badges a:hover {
+  transform: scale(1.1);
+  filter: brightness(1.15);
+}
+
+/* -------- 只针对 publications 的 badges 与 tags 调整间距 -------- */
+.publications-badges {
+  margin-top: -1.0em;   /* 减少与 Published 的空隙 */
+  margin-bottom: 0.8em; /* 缩小 badges 与 tags 之间的间隙 */
+}
+
+.publications-tags {
+  margin-top: -0.0em;   /* 缩小 tags 与上面 badges 的空隙 */
+  margin-bottom: -0.6em; /* 保持和摘要/正文有适度间距 */
+}

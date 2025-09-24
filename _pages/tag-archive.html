@@ -1,17 +1,53 @@
 ---
 layout: archive
 permalink: /tags/
-title: "Posts by Tags"
+title: "Content by Tags"
 author_profile: true
 ---
 
 {% include base_path %}
-{% include group-by-array collection=site.posts field="tags" %}
 
+{%- comment -%}
+  合并所有要支持的 collection
+{%- endcomment -%}
+{% assign all_docs = site.posts | concat: site.codes | concat: site.talks | concat: site.publications %}
+{% assign all_docs = all_docs | sort: "date" | reverse %}
+
+{%- comment -%}
+  按 tag 分组
+{%- endcomment -%}
+{% include group-by-array collection=all_docs field="tags" %}
+
+{%- comment -%}
+  ====== Tags 索引表格 ======
+{%- endcomment -%}
+<ul class="taxonomy__index">
+  {% for tag in group_names %}
+    {% assign posts = group_items[forloop.index0] %}
+    <li>
+      <a href="#{{ tag | slugify }}">
+        <strong>{{ tag }}</strong> <span class="taxonomy__count">{{ posts | size }}</span>
+      </a>
+    </li>
+  {% endfor %}
+</ul>
+
+{%- comment -%}
+  ====== Tags 内容区 ======
+{%- endcomment -%}
 {% for tag in group_names %}
   {% assign posts = group_items[forloop.index0] %}
-  <h2 id="{{ tag | slugify }}" class="archive__subtitle">{{ tag }}</h2>
-  {% for post in posts %}
-    {% include archive-single.html %}
-  {% endfor %}
+  <section id="{{ tag | slugify }}" class="taxonomy__section">
+    <h2 class="archive__subtitle">{{ tag }}</h2>
+    {% for post in posts %}
+      {%- if post.collection == "codes" -%}
+        {% include archive-single-code.html %}
+      {%- elsif post.collection == "talks" -%}
+        {% include archive-single-talk.html %}
+      {%- else -%}
+        {% include archive-single.html %}
+      {%- endif -%}
+    {% endfor %}
+    <a href="#top">⬆ Back to top</a>
+  </section>
 {% endfor %}

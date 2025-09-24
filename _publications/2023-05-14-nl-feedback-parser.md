@@ -9,6 +9,18 @@ paperurl: 'https://aclanthology.org/2023.acl-long.177.pdf'
 citation: 'Hao Yan, Saurabh Srivastava, Yintao Tai, Sida I. Wang, Wen-tau Yih, and Ziyu Yao. 2023. Learning to Simulate Natural Language Feedback for Interactive Semantic Parsing. In Proceedings of the 61st Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers), pages 3149–3170, Toronto, Canada. Association for Computational Linguistics.'
 bibtexurl: 'https://tyttyttyt.github.io/files/nl_feedback_parser.bib'
 venue: 'ACL'
+
+github_repo: "april-tools/pixar"
+huggingface_repo: "april-tools/pixar"
+pypi_package: "HyperArgs"
+conda_package: "conda-forge/awesome-retrieval"
+docker_image: "yourname/awesome-retrieval"
+npm_package: "awesome-retrieval"
+
+tags:
+  - cool posts
+  - category1
+  - category2
 ---
 
 **Authors**: Hao Yan, Saurabh Srivastava, **Yintao Tai**, Sida I. Wang, Wen-tau Yih, Ziyu Yao \

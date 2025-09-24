@@ -1,0 +1,16 @@
+---
+layout: archive
+title: "Codes"
+permalink: /codes/
+author_profile: true
+---
+
+{% if site.author.github %}
+  <div class="wordwrap">You may also find my other projects on <a href="https://github.com/{{ site.author.github }}"><i class="fab fa-fw fa-github icon-right" aria-hidden="true"></i>GitHub</a>.</div>
+{% endif %}
+
+{% include base_path %}
+
+{% for post in site.codes reversed %}
+  {% include archive-single-code.html %}
+{% endfor %}
