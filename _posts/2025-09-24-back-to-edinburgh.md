@@ -1,6 +1,6 @@
 ---
 title: 'Back to Edinburgh!'
-date: 2012-08-14
+date: 2025-09-24
 permalink: /posts/2025/09/24/back-to-edinburgh/
 tags:
   - news
