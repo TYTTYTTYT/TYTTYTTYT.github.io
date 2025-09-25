@@ -10,17 +10,16 @@ citation: 'Hao Yan, Saurabh Srivastava, Yintao Tai, Sida I. Wang, Wen-tau Yih, a
 bibtexurl: 'https://tyttyttyt.github.io/files/nl_feedback_parser.bib'
 venue: 'ACL'
 
-github_repo: "april-tools/pixar"
-huggingface_repo: "april-tools/pixar"
-pypi_package: "HyperArgs"
-conda_package: "conda-forge/awesome-retrieval"
-docker_image: "yourname/awesome-retrieval"
-npm_package: "awesome-retrieval"
+github_repo: "hyan5/Learning_to_Simulate_NL_Feedback"
+# huggingface_repo: "april-tools/pixar"
+# pypi_package: "HyperArgs"
+# conda_package: "conda-forge/awesome-retrieval"
+# docker_image: "yourname/awesome-retrieval"
+# npm_package: "awesome-retrieval"
 
 tags:
-  - cool posts
-  - category1
-  - category2
+  - NLP
+  - semantic-parsing
 ---
 
 **Authors**: Hao Yan, Saurabh Srivastava, **Yintao Tai**, Sida I. Wang, Wen-tau Yih, Ziyu Yao \

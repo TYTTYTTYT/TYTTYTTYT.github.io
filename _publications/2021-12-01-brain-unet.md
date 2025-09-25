@@ -9,6 +9,17 @@ paperurl: 'https://www.spiedigitallibrary.org/conference-proceedings-of-spie/120
 citation: 'Tuofu Li, Javin Jia Liu, Yintao Tai, Yuxuan Tian, "Brain tumor segmentation with attention-based U-Net," Proc. SPIE 12079, Second IYSF Academic Symposium on Artificial Intelligence and Computer Engineering, 120790N (1 December 2021); https://doi.org/10.1117/12.2623112'
 bibtexurl: 'https://tyttyttyt.github.io/files/brain_unet.bib'
 venue: 'SPIE'
+
+github_repo: "TYTTYTTYT/Attention_Based_U-Nets"
+# huggingface_repo: "april-tools/pixar"
+# pypi_package: "HyperArgs"
+# conda_package: "conda-forge/awesome-retrieval"
+# docker_image: "yourname/awesome-retrieval"
+# npm_package: "awesome-retrieval"
+
+tags:
+  - CV
+  - healthcare AI
 ---
 
 **Authors**: Tuofu Li, Javin Jia Liu, **Yintao Tai**, Yuxuan Tian \
