@@ -7,7 +7,7 @@ redirect_from:
   - /about.html
 ---
 
-Yintao Tai is a PhD student in the UKRI-funded CDT in Designing Responsible Natural Language Processing at the University of Edinburgh, where he is supervised by Prof. Frank Keller and Prof. Antonio Vergari. He received his BSc in Electronics and Computer Science and his MSc in Computer Science, also from Edinburgh.
+Yintao Tai is a PhD student in the UKRI-funded CDT in Designing Responsible Natural Language Processing at the University of Edinburgh, where he is supervised by Prof. Frank Keller and Prof. Antonio Vergari. He received his BEng in Electronics and Computer Science and his MSc in Computer Science, also from Edinburgh.
 
 Before starting his PhD, he worked as a machine learning engineer at ByteDance, where he developed multimodal methods that enhanced large-scale recommendation systems. This industry experience shaped his interest in building scalable and efficient multimodal models.
 
