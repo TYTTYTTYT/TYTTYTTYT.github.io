@@ -120,7 +120,7 @@
       </p>
     {% endif %}
 
-    {% if post.tags and post.tags != empty %}
+    {% if post.tags and post.tags != empty and post.collection != 'publications' %}
       <p class="page__taxonomy {% if post.collection == 'publications' %}publications-tags{% endif %}">
         <strong>
           <i class="fa fa-fw fa-tags" aria-hidden="true"></i>
