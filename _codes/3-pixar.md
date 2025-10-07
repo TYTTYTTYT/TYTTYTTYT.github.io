@@ -2,7 +2,7 @@
 title: "pixar"
 collection: codes
 # category: python
-permalink: /codes/2-hyperarg/
+permalink: /codes/3-pixar/
 excerpt: 'The training and inference library for project PIXAR.'
 
 tags:
