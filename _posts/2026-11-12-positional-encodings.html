@@ -1,0 +1,1029 @@
+---
+title: 'Positional Encodings and Extension Methods'
+date: 2026-11-12
+permalink: /posts/2026/11/12/positional-encodings/
+lang: en
+excerpt: 'Common positional encodings and context extension methods: how they work, why they succeed, and where they fail.'
+tags:
+  - positional encodings
+  - long context
+  - research notes
+translations:
+  - lang: en
+    url: /posts/2026/11/12/positional-encodings/
+  - lang: zh-CN
+    url: /posts/2026/11/12/positional-encodings-zh/
+---
+<nav aria-label="Article language" style="margin:0 0 1.5em;padding:.7em 1em;border:1px solid #b9c1cc;border-radius:6px"><strong>Language / 语言：</strong> <a href="/posts/2026/11/12/positional-encodings/" lang="en" hreflang="en" aria-current="page">English</a> | <a href="/posts/2026/11/12/positional-encodings-zh/" lang="zh-CN" hreflang="zh-CN">简体中文</a></nav>
+<h2 id="abstract">Abstract</h2>
+<p>This post reviews common positional encoding methods and approaches to extending the context length of language models, from sinusoidal embeddings and relative position biases to RoPE and its extensions. Alongside their mathematical formulations, I share my understanding of how these methods encode position, interact with token content, and behave beyond the training context length—why they work, where they fail, and what their limitations reveal. The aim is to connect the intuition behind positional encodings with the design choices and trade-offs of context extension.</p>
+<h1 id="position-encodings">1. Position Encodings</h1>
+<h2 id="sinusoidal-position-encoding">1.1 Sinusoidal position encoding</h2>
+<p><strong>Notation</strong></p>
+<div style="overflow-x:auto"><table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Symbol</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><span class="math inline">\(pos\)</span></td>
+<td>Token position (starting from 0).</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(d\)</span></td>
+<td>Model/embedding dimension; assumed even here.</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(i\)</span></td>
+<td>Dimension-pair index, 0 to d/2−1; not a token position in this section.</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\mathrm{PE}(pos,2i),\mathrm{PE}(pos,2i+1)\)</span></td>
+<td>Sine and cosine components of the positional encoding.</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(k\)</span></td>
+<td>Fixed offset between token positions.</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\pi\)</span></td>
+<td>The circle constant; one complete rotation is 2π radians.</td>
+</tr>
+</tbody>
+</table></div>
+<p>The original Transformer<a href="#ref-1">1</a> adds a fixed encoding to the token embedding at each position <span class="math inline">\(pos\)</span>. For <span class="math inline">\(i = 0, \dots, d/2-1\)</span>, where <span class="math inline">\(d\)</span> is the model dimension,</p>
+<p><span class="math display">\[
+\mathrm{PE}(pos, 2i) = \sin\left(\frac{pos}{10000^{2i/d}}\right), \qquad \mathrm{PE}(pos, 2i + 1) = \cos\left(\frac{pos}{10000^{2i/d}}\right).
+\]</span></p>
+<ul>
+<li>The periods range from <span class="math inline">\(2\pi\)</span> (fastest band) to about <span class="math inline">\(20000\pi\)</span> (slowest band).</li>
+<li>The authors hypothesized that this lets the model easily learn to attend by relative positions, because <span class="math inline">\(\mathrm{PE}(pos + k)\)</span> is a linear function of <span class="math inline">\(\mathrm{PE}(pos)\)</span> for any fixed offset <span class="math inline">\(k\)</span>.</li>
+</ul>
+<h2 id="learnable-absolute-position-encoding">1.2 Learnable absolute position encoding</h2>
+<p>Each position has its own learnable embedding, which is added to the token embedding at that position. The positional embeddings are randomly initialized and trained together with the model.</p>
+<ul>
+<li>Applied by BERT<a href="#ref-2">2</a> and GPT<a href="#ref-3">3</a></li>
+<li>Described as an improvement upon the sinusoidal position encoding<a href="#ref-4">4</a></li>
+<li>The number of positions is fixed at training time, so the model cannot take longer inputs at all</li>
+</ul>
+<h2 id="t5-relative-bias5">1.3 T5 relative bias<a href="#ref-5">5</a></h2>
+<p><strong>Notation</strong></p>
+<div style="overflow-x:auto"><table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Symbol</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><span class="math inline">\(i,j\)</span></td>
+<td>Query and key token positions (a different use of i from §1.1).</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(l,h\)</span></td>
+<td>Layer index and attention-head index.</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(q_i^{(l,h)},k_j^{(l,h)}\)</span></td>
+<td>Query and key vectors at the indicated layer and head.</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(s(i,j)^{(l,h)}\)</span></td>
+<td>Attention logit before softmax.</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(M_{i,j}\)</span></td>
+<td>Attention-mask bias: typically 0 for allowed pairs and −∞ for blocked pairs.</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(d\)</span></td>
+<td>Relative distance |i−j| in the bucket formula; not the embedding dimension here.</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(B,D\)</span></td>
+<td>Number of buckets and maximum-distance parameter (far distances share the last bucket).</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(g(d),\mathrm{bucket}(d)\)</span></td>
+<td>Bucket index assigned to distance d; logarithmic indices are rounded down.</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(b^{(h)}\)</span></td>
+<td>Learned positional-bias table for head h, shared across layers.</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\top,\log,\min\)</span></td>
+<td>Transpose, logarithm, and minimum.</td>
+</tr>
+</tbody>
+</table></div>
+<p>T5 doesn’t add positional embeddings to individual positions, but directly adds a bias to each logit. The bias is determined by the relative position.</p>
+<p>For position <span class="math inline">\(i\)</span> and <span class="math inline">\(j\)</span> at layer <span class="math inline">\(l\)</span> and head <span class="math inline">\(h\)</span>, the logit <span class="math inline">\(s_{i, j}^{(h, l)}\)</span> is defined as</p>
+<p><span class="math display">\[
+s(i, j)^{(l,h)} = (q_i^{(l,h)})^\top k_j^{(l,h)} + b_{\textrm{bucket}(\mid i-j\mid)}^{(h)} + M_{i,j},
+\]</span></p>
+<p>where <span class="math inline">\(b_{\textrm{bucket}(d)}^{(h)}\)</span> is the positional bias of relative distance <span class="math inline">\(d\)</span> at head <span class="math inline">\(h\)</span>. In the T5 implementation, the positional biases are shared between layers so there is only <span class="math inline">\(h\)</span> index at its superscript.</p>
+<p><br /></p>
+<p>The bucket is designed to give fine resolution to recent positions and coarse resolution to far positions. Assume the number of buckets is <span class="math inline">\(B\)</span>, max distance is <span class="math inline">\(D\)</span>, the bucket index <span class="math inline">\(g(d)\)</span> is defined as</p>
+<p><span class="math display">\[
+  g(d) =
+    \begin{cases}
+      d &amp; d &lt; B/2 \\
+      \min(B - 1, B/2 + \frac{\log(2d/B)}{\log(2D/B)}\cdot\frac{B}{2}) &amp; d \geq B/2.
+    \end{cases}
+\]</span></p>
+<p>In this case, each closest relative position gets one bucket, the farther the larger the bucket (coarser resolution).</p>
+<p>For example, with a toy setting <span class="math inline">\(B = 8\)</span> and <span class="math inline">\(D = 64\)</span> (bucket index rounded down; T5 itself uses <span class="math inline">\(B = 32\)</span>, <span class="math inline">\(D = 128\)</span>):</p>
+<div style="overflow-x:auto"><table>
+<thead>
+<tr class="header">
+<th><span class="math inline">\(d\)</span></th>
+<th>0</th>
+<th>1</th>
+<th>2</th>
+<th>3</th>
+<th>4–7</th>
+<th>8–15</th>
+<th>16–31</th>
+<th>≥32</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>bucket</td>
+<td>0</td>
+<td>1</td>
+<td>2</td>
+<td>3</td>
+<td>4</td>
+<td>5</td>
+<td>6</td>
+<td>7</td>
+</tr>
+</tbody>
+</table></div>
+<p><br /></p>
+<h3 id="t5-relative-bias-is-a-biased-nope">1.3.1 T5 relative bias is a biased NoPE</h3>
+<p><strong>Notation</strong></p>
+<div style="overflow-x:auto"><table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Symbol</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><span class="math inline">\(q_i,k_j\)</span></td>
+<td>Content query/key vectors; layer and head indices are omitted.</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(p_i^q,p_j^k\)</span></td>
+<td>Additive positional vectors for the query and key; q/k superscripts are labels.</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(i-j\)</span></td>
+<td>Signed relative position.</td>
+</tr>
+</tbody>
+</table></div>
+<blockquote>
+<p>💡 <strong>My thinking about relative bias</strong></p>
+<p>For additive position encodings <span class="math inline">\(p\)</span>, adding them to <span class="math inline">\(q\)</span> and <span class="math inline">\(k\)</span> is equivalent to adding biases to the logits:</p>
+<p><span class="math display">\[
+(q_i + p^q_i)^\top (k_j + p^k_j) = (q_i)^\top k_j + (q_i)^\top p_j^k + (p_i^q)^\top k_j + (p_i^q)^\top p_j^k
+\]</span></p>
+<p>Here <span class="math inline">\((p_i^q)^\top p_j^k\)</span> is a bias that depends only on the positions, while <span class="math inline">\((q_i)^\top p_j^k + (p_i^q)^\top k_j\)</span> is a bias determined by the interaction between semantics and positions.</p>
+<p>However, these biases generally depend on the absolute positions <span class="math inline">\(i\)</span> and <span class="math inline">\(j\)</span>, which is undesirable. We want the positional effect to depend only on the relative distance <span class="math inline">\(i - j\)</span>.</p>
+<p>The T5 relative bias depends only on the relative distance, but it has no interaction between semantics and positions. Such an interaction is still useful. For example, the meaning of the token “tion” relies heavily on the previous token, while the token “France” relies much less on it. How much a token attends to its neighbors therefore depends on its semantics. We need positional biases that depend on both the semantics and the relative distance, but not on the absolute positions. This is what RoPE <a href="#ref-6">6</a> provides.</p>
+</blockquote>
+<p><br /></p>
+<p>But why does the T5 relative bias still work without this semantic dependency? One reason is that the model can build it across layers: a head with a strong local bias can copy the previous token into the current hidden state, so later layers already see position-aware content in <span class="math inline">\(q\)</span> and <span class="math inline">\(k\)</span>. In a causal decoder, the causal mask also leaks order information, since a token can infer its position from how many tokens it can see. This is why causal language models without any positional encoding (NoPE) still learn positional information<a href="#ref-7">7</a>.</p>
+<p>So basically, the T5 relative bias is NoPE plus a learned, per-head bias on the bucketed relative distance. This bias is not constrained to decay with distance, and all distances beyond <span class="math inline">\(D\)</span> share the last bucket</p>
+<h2 id="rotary-position-embedding-rope">1.4 Rotary position embedding (RoPE)</h2>
+<p><strong>Notation</strong></p>
+<div style="overflow-x:auto"><table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Symbol</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><span class="math inline">\(q_i,k_j\)</span></td>
+<td>Query at position i and key at position j.</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(f(x,m)\)</span></td>
+<td>Position-dependent transformation of vector x at position m.</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(g(q_i,k_j,i-j)\)</span></td>
+<td>Desired content-and-relative-position function; unrelated to T5’s bucket g.</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(s_{\mathrm{RoPE}}(i,j)\)</span></td>
+<td>RoPE attention logit.</td>
+</tr>
+</tbody>
+</table></div>
+<p>As shown above, additive position encodings generally make the logits depend on the absolute positions, while the T5 relative bias lacks the semantic-position interaction. Su et al. <a href="#ref-6">6</a> later proposed RoPE, which keeps this interaction but makes it depend only on the relative position, while being more expressive than bucketed biases.</p>
+<p>The target of RoPE is to encode positions such that the logit <span class="math inline">\(s(i,j)\)</span> is a function of the contents and the relative distance only</p>
+<p><span class="math display">\[
+s_{\textrm{RoPE}}(i,j) = f(q_i, i)^{\top} f(k_j, j) = g(q_i, k_j, i-j)
+\]</span></p>
+<h3 id="intuition-behind-rope">1.4.1 Intuition behind RoPE</h3>
+<p><strong>Notation</strong></p>
+<div style="overflow-x:auto"><table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Symbol</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><span class="math inline">\(z,z_1,z_2\)</span></td>
+<td>Complex numbers.</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(c,c_1,c_2\)</span></td>
+<td>Complex-number magnitudes (lengths).</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\theta,\theta_1,\theta_2\)</span></td>
+<td>Complex-number angles, in radians.</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\mathrm{i}\)</span></td>
+<td>Imaginary unit, √−1; distinct from the position index i.</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\bar z,\exp\)</span></td>
+<td>Complex conjugate and exponential function.</td>
+</tr>
+</tbody>
+</table></div>
+<p>Any complex number can be expressed by a modulus (length) <span class="math inline">\(c\)</span> and an angle <span class="math inline">\(\theta\)</span> from the positive real axis</p>
+<p><span class="math display">\[
+z = c\exp(\mathrm{i}\theta)
+\]</span></p>
+<p>Multiplying two complex numbers simply multiplies the moduli and adds the angles.</p>
+<p><span class="math display">\[
+z_1 \times z_2 = c_1 c_2 \exp(\mathrm{i}(\theta_1 + \theta_2))
+\]</span></p>
+<p>If we multiply the first complex number by the conjugate of the second, the result only depends on the moduli and their relative angle.</p>
+<p><span class="math display">\[
+z_1 \times \bar{z}_2 = c_1 c_2 \exp(\mathrm{i}(\theta_1 - \theta_2))
+\]</span></p>
+<p>The relative angle <span class="math inline">\(\theta_1 - \theta_2\)</span> is what we can use to express the relative distance!</p>
+<figure>
+<img src="/images/positional-encodings/complex_mult.png" alt="Multiplying two complex numbers: lengths multiply, angles add" />
+<figcaption aria-hidden="true">Multiplying two complex numbers: lengths multiply, angles add</figcaption>
+</figure>
+<h3 id="rope">1.4.2 RoPE</h3>
+<p><strong>Notation</strong></p>
+<div style="overflow-x:auto"><table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Symbol</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><span class="math inline">\(d,t\)</span></td>
+<td>Even head dimension and dimension-pair index t=0,…,d/2−1.</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(q_{i,2t},q_{i,2t+1}\)</span></td>
+<td>Two real components forming pair t of the query at position i.</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\tilde q_i^{(t)},\tilde k_j^{(t)}\)</span></td>
+<td>Complex representation of query/key pair t.</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\theta_t\)</span></td>
+<td>Angular frequency of pair t; smaller t denotes faster rotation.</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\mathbb R^d,\mathrm{Re},\sum\)</span></td>
+<td>d-dimensional real vector space, real part, and summation over pairs.</td>
+</tr>
+</tbody>
+</table></div>
+<p>For simplicity, we introduce RoPE with a single-head attention and ignore the attention mask (causal mask).</p>
+<p>Let <span class="math inline">\(q_i, k_j \in \mathbb{R}^{d}\)</span> (<span class="math inline">\(d\)</span> even) be the query at position <span class="math inline">\(i\)</span> and the key at position <span class="math inline">\(j\)</span>. Split the dimensions into <span class="math inline">\(d/2\)</span> pairs <span class="math inline">\((2t, 2t+1)\)</span> and view each pair as a complex number <span class="math inline">\(\tilde{q}_i^{(t)} = q_{i,2t} + \mathrm{i}\, q_{i,2t+1}\)</span> (same for <span class="math inline">\(\tilde{k}_j^{(t)}\)</span>), with frequency <span class="math inline">\(\theta_t = 10000^{-2t/d}\)</span>, <span class="math inline">\(t = 0, \dots, d/2-1\)</span>.</p>
+<p><strong>Transformation.</strong> Rotate pair <span class="math inline">\(t\)</span> by the angle (position <span class="math inline">\(\times\, \theta_t\)</span>):</p>
+<p><span class="math display">\[
+f(q_i, i)^{(t)} = \tilde{q}_i^{(t)} \exp(\mathrm{i}\, i\theta_t), \qquad f(k_j, j)^{(t)} = \tilde{k}_j^{(t)} \exp(\mathrm{i}\, j\theta_t).
+\]</span></p>
+<p><strong>Logits.</strong></p>
+<p><span class="math display">\[
+s_{\textrm{RoPE}}(i,j) = \mathrm{Re}\left[ \sum_{t=0}^{d/2-1} f(q_i, i)^{(t)}\, \overline{f(k_j, j)^{(t)}} \right] = \mathrm{Re}\left[ \sum_{t=0}^{d/2-1} \tilde{q}_i^{(t)}\, \overline{\tilde{k}_j^{(t)}}\, \exp(\mathrm{i}(i-j)\theta_t) \right],
+\]</span></p>
+<p>which depends on the positions only through <span class="math inline">\(i - j\)</span>.</p>
+<h3 id="implementation-of-rope">1.4.3 Implementation of RoPE</h3>
+<p><strong>Notation</strong></p>
+<div style="overflow-x:auto"><table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Symbol</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><span class="math inline">\(a_1,b_1,a_2,b_2\)</span></td>
+<td>Real and imaginary components of z₁ and z₂.</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(q_a,q_b,k_a,k_b\)</span></td>
+<td>Real and imaginary halves of the query and key vectors.</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(m,\theta\)</span></td>
+<td>Token position and vector of per-pair frequencies.</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(u_m,v_m\)</span></td>
+<td>Element-wise cos(mθ) and sin(mθ).</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\odot,[q_a;q_b]\)</span></td>
+<td>Element-wise multiplication and concatenation of the two halves.</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(e\)</span></td>
+<td>Base of the natural logarithm; exp(x)=eˣ.</td>
+</tr>
+</tbody>
+</table></div>
+<p>The product of two complex numbers could be expressed as</p>
+<p><span class="math display">\[
+\begin{align}
+  z_1 \times \overline{z_2} &amp;= (a_1 + \mathrm{i}b_1) \times \overline{(a_2 + \mathrm{i}b_2)} \\
+    &amp;= (a_1 + \mathrm{i}b_1) \times (a_2 - \mathrm{i}b_2)\\
+    &amp;= a_1a_2 + b_1b_2 + \mathrm{i}(a_2b_1 - a_1b_2).
+\end{align}
+\]</span></p>
+<p>Thus, the real part is simply</p>
+<p><span class="math display">\[
+\textrm{Re} \left[z_1 \times \overline{z_2} \right] = a_1a_2 + b_1b_2,
+\]</span></p>
+<p>which is just the real dot product of <span class="math inline">\((a_1, b_1)\)</span> and <span class="math inline">\((a_2, b_2)\)</span>. So we never need complex numbers: rotate <span class="math inline">\(q\)</span> and <span class="math inline">\(k\)</span> as real vectors, then take the ordinary dot product.</p>
+<p><strong>Split into halves.</strong> Store a complex vector as its real half and imaginary half: <span class="math inline">\(q = [q_a; q_b]\)</span> means <span class="math inline">\(\tilde{q} = q_a + \mathrm{i}\, q_b\)</span> (same for <span class="math inline">\(k\)</span>). Then</p>
+<p><span class="math display">\[
+\mathrm{Re}\left[\sum \tilde{q} \odot \overline{\tilde{k}}\right] = q_a^\top k_a + q_b^\top k_b = q^\top k,
+\]</span></p>
+<p>so the logit is just the ordinary dot product of the two real vectors.</p>
+<p><strong>Rotation.</strong> Rotating <span class="math inline">\(\tilde{q}\)</span> at position <span class="math inline">\(m\)</span> means multiplying by <span class="math inline">\(e^{\mathrm{i} m\theta} = u_m + \mathrm{i}\, v_m\)</span>, where <span class="math inline">\(u_m = \cos(m\theta)\)</span> and <span class="math inline">\(v_m = \sin(m\theta)\)</span> are vectors (one entry per frequency). With the halves this is only element-wise multiplications and additions:</p>
+<p><span class="math display">\[
+\mathrm{RoPE}(q, m) = \begin{bmatrix} q_a \odot u_m - q_b \odot v_m \\ q_a \odot v_m + q_b \odot u_m \end{bmatrix} = q \odot \begin{bmatrix} u_m \\ u_m \end{bmatrix} + \begin{bmatrix} -q_b \\ q_a \end{bmatrix} \odot \begin{bmatrix} v_m \\ v_m \end{bmatrix},
+\]</span></p>
+<p>and the same for <span class="math inline">\(k\)</span> at its own position. The logit is <span class="math inline">\(\mathrm{RoPE}(q, i)^\top \mathrm{RoPE}(k, j)\)</span>.</p>
+<p><strong>What is precomputed.</strong> The frequencies <span class="math inline">\(\theta\)</span> are fixed, so <span class="math inline">\(u_m\)</span> and <span class="math inline">\(v_m\)</span> for every position <span class="math inline">\(m\)</span> up to the maximum length are computed once and stored as a cos table and a sin table. At run time we only look up the rows for the current positions and do the element-wise operations above. During generation, the KV cache stores the keys after rotation, so each key is rotated only once (this assumes the rotation of a token never changes; see 2.3.1 for the case where it does).</p>
+<h3 id="influence">1.4.4 Influence</h3>
+<p>RoPE is the de-facto position encoding method in recent open-source LLM literature.</p>
+<ul>
+<li>LLaMA series</li>
+<li>Qwen series</li>
+<li>Gemma series</li>
+<li>Mistral series</li>
+<li>DeepSeek series</li>
+<li>…</li>
+</ul>
+<h3 id="why-rope-succeeded">1.4.5 Why RoPE succeeded</h3>
+<p>This section is based on my own understanding.</p>
+<blockquote>
+<p>💡 In the original paper, the authors state: “Notably, RoPE enables valuable properties, including the flexibility of sequence length, decaying inter-token dependency with increasing relative distances, and the capability of equipping linear self-attention with relative position encoding”. However, I think the long-term decay is not what the model actually relies on.</p>
+<p>The paper only proves that an <em>upper bound</em> of the logit decays with distance, and Barbero et al. <a href="#ref-8">8</a> show that this decay does not hold in general (e.g. for random queries and keys). The distance preference that trained models actually show comes mainly from the functional split between attention heads, not from RoPE’s decay.</p>
+<p>In my understanding, RoPE succeeds because it provides a positional bias that depends on both the semantics and the relative distance, but not on the absolute positions (see 1.3).</p>
+</blockquote>
+<h2 id="xpos">1.5 XPos</h2>
+<p><strong>Notation</strong></p>
+<div style="overflow-x:auto"><table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Symbol</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><span class="math inline">\(i,j,t,d\)</span></td>
+<td>Query/key positions, pair index, and even head dimension, as in RoPE.</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\zeta_t\)</span></td>
+<td>Per-pair decay rate between 0 and 1.</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\lambda\)</span></td>
+<td>Decay-shape parameter, set to 0.4; not the wavelength λₜ used later.</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\gamma\)</span></td>
+<td>Distance scale for decay, set to 512; not YaRN’s blending coefficient γₜ.</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(s_{\mathrm{XPos}}(i,j)\)</span></td>
+<td>Attention logit after rotary encoding and decay.</td>
+</tr>
+</tbody>
+</table></div>
+<p>Previously, people thought that models cannot work beyond the training length because of the absolute position encoding. However, RoPE-based models, although they remove the dependence on absolute positions, still cannot work beyond the training length.</p>
+<p>Sun et al. <a href="#ref-9">9</a>attribute this to the fast-rotating bands: at large distances they make the logits oscillate instead of decaying, which adds noise to attention and hinders the extrapolation of RoPE. Thus, they add an explicit distance decay to RoPE. Each dimension pair <span class="math inline">\(t = 0, \dots, d/2-1\)</span> (the same pair index as in 1.4.2, so small <span class="math inline">\(t\)</span> means a fast band) gets a decay rate</p>
+<p><span class="math display">\[
+\zeta_t = \frac{2t/d + \lambda}{1 + \lambda} \in (0, 1), \qquad \lambda = 0.4,
+\]</span></p>
+<p>and the query and key are scaled in opposite directions before rotation:</p>
+<p><span class="math display">\[
+f(q_i, i)^{(t)} = \tilde{q}_i^{(t)}\, \zeta_t^{\,i/\gamma} \exp(\mathrm{i}\, i\theta_t), \qquad f(k_j, j)^{(t)} = \tilde{k}_j^{(t)}\, \zeta_t^{-j/\gamma} \exp(\mathrm{i}\, j\theta_t),
+\]</span></p>
+<p>with <span class="math inline">\(\gamma = 512\)</span>. The logit becomes</p>
+<p><span class="math display">\[
+s_{\textrm{XPos}}(i,j) = \mathrm{Re}\left[ \sum_{t} \tilde{q}_i^{(t)}\, \overline{\tilde{k}_j^{(t)}}\, \zeta_t^{(i-j)/\gamma} \exp(\mathrm{i}(i-j)\theta_t) \right],
+\]</span></p>
+<p>which still depends only on <span class="math inline">\(i - j\)</span>, and for <span class="math inline">\(i \ge j\)</span> (causal attention) each band is damped by <span class="math inline">\(\zeta_t^{(i-j)/\gamma}\)</span>. Fast bands (small <span class="math inline">\(t\)</span>, small <span class="math inline">\(\zeta_t\)</span>) decay quickly, so they only matter for nearby tokens; slow bands (<span class="math inline">\(\zeta_t \to 1\)</span>) barely decay. At inference, XPos is also combined with blockwise causal attention to extrapolate to longer sequences.</p>
+<p><strong>However</strong>, the experiments are small: a model comparable to GPT-3 Medium (24 layers, 1024 hidden) is trained from scratch with length 1024 and evaluated on arXiv only up to 4096, i.e. 4× the training length. With blockwise causal attention, the perplexity keeps dropping (23.31 → 21.6 → 20.73 at 1024 / 2048 / 4096), but plain RoPE with blockwise causal attention also stops exploding (25.57 / 25.65 vs. 73.6 / 294.45 without it). <strong>Without it, XPos still degrades (22.56 at 2048, 28.43 at 4096), so the decay alone does not solve extrapolation, and much of the gain comes from the windowed attention.</strong></p>
+<p>Decay the fast bands may help far tokens, but it’s better to preserve the fast bands in recent tokens.</p>
+<h2 id="attention-with-linear-biases-alibi">1.6 Attention with linear biases (ALiBi)</h2>
+<p><strong>Notation</strong></p>
+<div style="overflow-x:auto"><table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Symbol</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><span class="math inline">\(s_{\mathrm{ALiBi}}(i,j)\)</span></td>
+<td>Attention logit with a linear distance penalty.</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(H,h\)</span></td>
+<td>Number of heads and head index h=1,…,H.</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(m_h\)</span></td>
+<td>Positive distance-penalty slope for head h; the stated geometric formula is the power-of-two-head case.</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(i-j,\exp(x)\)</span></td>
+<td>Nonnegative causal distance and exponential weighting induced by softmax.</td>
+</tr>
+</tbody>
+</table></div>
+<p>Similar to XPos (though published earlier), Press et al. <a href="#ref-10">10</a> proposed ALiBi to decay the attention scores of far tokens. ALiBi adds no position embedding to <span class="math inline">\(q\)</span> or <span class="math inline">\(k\)</span>; instead it adds a fixed, non-learned linear penalty to each logit:</p>
+<p><span class="math display">\[
+s_{\textrm{ALiBi}}(i,j) = q_i^\top k_j - m_h\,(i-j), \qquad j \le i,
+\]</span></p>
+<p>where <span class="math inline">\(m_h\)</span> is a head-specific slope. For <span class="math inline">\(H\)</span> heads the slopes form a geometric sequence <span class="math inline">\(m_h = 2^{-8h/H}\)</span>, <span class="math inline">\(h = 1, \dots, H\)</span> (e.g. <span class="math inline">\(\frac{1}{2}, \frac{1}{4}, \dots, \frac{1}{256}\)</span> for 8 heads).</p>
+<p>Unlike XPos, which multiplies the logits by a decay factor (pushing far logits towards <span class="math inline">\(0\)</span>), ALiBi <em>adds</em> a penalty that goes to <span class="math inline">\(-\infty\)</span> with distance, so far tokens are truly suppressed after softmax. Each head therefore works as a soft sliding window of a different size: with <span class="math inline">\(m_h = 1/2\)</span>, a token 20 positions away is already down-weighted by <span class="math inline">\(e^{-10}\)</span>, while with <span class="math inline">\(m_h = 1/256\)</span> the penalty at distance 2048 is only <span class="math inline">\(-8\)</span>. A 1.3B model trained on length 1024 extrapolates to 2048 with the same perplexity as a sinusoidal model trained on 2048, and the perplexity stays stable at much longer lengths. ALiBi was later used by BLOOM and MPT.</p>
+<h3 id="alibi-is-a-nope-with-distance-decay">1.6.1 ALiBi is a NoPE with distance decay</h3>
+<p>The positional bias <span class="math inline">\(-m_h\,(i-j)\)</span> depends only on the relative distance, not on the semantics. Like the T5 relative bias, ALiBi is therefore NoPE plus a relative bias, but here the bias is fixed and always decays with distance. Since the decay is strong in most heads, far tokens are largely ignored and the model behaves like a streaming LLM. Thus, ALiBi is functionally similar to a streaming NoPE, except that the heads with the smallest slopes can still see far tokens.</p>
+<h1 id="training-free-context-extension">2. Training-free Context Extension</h1>
+<p><strong>Notation</strong></p>
+<div style="overflow-x:auto"><table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Symbol</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><span class="math inline">\(L,L&#39;\)</span></td>
+<td>Training context length and target extended context length.</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(s\)</span></td>
+<td>Extension factor L′/L&gt;1; not the attention logit s(i,j).</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(i,j,t,\theta_t\)</span></td>
+<td>Query/key positions, frequency-band index, and original angular frequency.</td>
+</tr>
+</tbody>
+</table></div>
+<p>A RoPE model trained with context length <span class="math inline">\(L\)</span> fails on longer inputs mainly because the angle <span class="math inline">\((i-j)\theta_t\)</span> in the logit</p>
+<p><span class="math display">\[
+s_{\textrm{RoPE}}(i,j) = \mathrm{Re}\left[ \sum_{t} \tilde{q}_i^{(t)}\, \overline{\tilde{k}_j^{(t)}}\, \exp(\mathrm{i}(i-j)\theta_t) \right]
+\]</span></p>
+<p>leaves the range seen during training. To use the model at length <span class="math inline">\(L&#39; = sL\)</span> (<span class="math inline">\(s &gt; 1\)</span>) without changing its architecture, we can change the frequencies <span class="math inline">\(\theta_t\)</span> (2.1) or the distance <span class="math inline">\(i - j\)</span> (2.2). Either can also follow the current sequence length instead of being fixed up front (2.3).</p>
+<h2 id="rescaling-the-frequencies">2.1 Rescaling the frequencies</h2>
+<p><strong>Notation</strong></p>
+<div style="overflow-x:auto"><table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Symbol</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><span class="math inline">\(\theta_t,\theta&#39;_t\)</span></td>
+<td>Original and rescaled angular frequencies of band t.</td>
+</tr>
+</tbody>
+</table></div>
+<p>These methods slow down the rotation speed <span class="math inline">\(\theta_t\)</span> to <span class="math inline">\(\theta&#39;_t\)</span>. They differ in how much each band is scaled.</p>
+<h3 id="position-interpolation-pi">2.1.1 Position Interpolation (PI)</h3>
+<p><strong>Notation</strong></p>
+<div style="overflow-x:auto"><table>
+<thead>
+<tr class="header">
+<th>Symbol</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><span class="math inline">\(s,m\)</span></td>
+<td>Extension factor and token position before interpolation.</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(m/s\)</span></td>
+<td>Interpolated (possibly fractional) token position.</td>
+</tr>
+</tbody>
+</table></div>
+<p>Chen et al. <a href="#ref-11">11</a> and, concurrently, kaiokendev <a href="#ref-12">12</a> scale all bands equally:</p>
+<p><span class="math display">\[
+\theta&#39;_t = \frac{\theta_t}{s}.
+\]</span></p>
+<p>Position <span class="math inline">\(m\)</span> now has the angles of position <span class="math inline">\(m/s\)</span>, so all positions up to <span class="math inline">\(L&#39;\)</span> stay in the seen range. However, nearby tokens now differ by only <span class="math inline">\(1/s\)</span> of a position, so the fast bands lose resolution and PI relies on fine-tuning to recover it. With fine-tuning within 1000 steps, LLaMA is extended to 32768.</p>
+<h3 id="ntk-aware-scaling">2.1.2 NTK-aware scaling</h3>
+<p><strong>Notation</strong></p>
+<div style="overflow-x:auto"><table>
+<thead>
+<tr class="header">
+<th>Symbol</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><span class="math inline">\(t,d\)</span></td>
+<td>Pair index and even head dimension (d&gt;2 for this formula).</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(s^{-2t/(d-2)}\)</span></td>
+<td>Frequency-scaling factor for pair t.</td>
+</tr>
+</tbody>
+</table></div>
+<p>To keep the fast bands, bloc97 <a href="#ref-13">13</a> scale the bands non-uniformly, motivated by the NTK analysis of Fourier features <a href="#ref-14">14</a>: high-frequency inputs are needed to learn high-frequency functions. This is done by enlarging the base in <span class="math inline">\(\theta_t\)</span>, which is equivalent to</p>
+<p><span class="math display">\[
+\theta&#39;_t = \theta_t \cdot s^{-2t/(d-2)}.
+\]</span></p>
+<p>The fastest band is unchanged and only the slowest band is scaled by the full <span class="math inline">\(1/s\)</span>. This works much better than PI without fine-tuning. However, the other bands are scaled by less than <span class="math inline">\(1/s\)</span>, so some of them still reach out-of-bound angles: Peng et al. <a href="#ref-4">4</a> report that it is inferior to PI after fine-tuning, and that <span class="math inline">\(s\)</span> must be set higher than the expected extension.</p>
+<h3 id="yarn">2.1.3 YaRN</h3>
+<p><strong>Notation</strong></p>
+<div style="overflow-x:auto"><table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Symbol</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><span class="math inline">\(\lambda_t\)</span></td>
+<td>Wavelength of band t, 2π/θₜ, measured in token positions.</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(r_t\)</span></td>
+<td>Number of rotations within the training length: L/λₜ.</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\alpha,\beta\)</span></td>
+<td>Lower/upper rotation-count thresholds; 1 and 32 in the stated Llama setting.</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\gamma_t\)</span></td>
+<td>Blending weight from 0 (full interpolation) to 1 (unchanged frequency).</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\tau\)</span></td>
+<td>Attention temperature; q and k are each multiplied by √(1/τ).</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(d,\ln,\mathrm{softmax}\)</span></td>
+<td>Head dimension, natural logarithm, and normalization of logits into attention weights.</td>
+</tr>
+</tbody>
+</table></div>
+<p>Peng et al. <a href="#ref-4">4</a> scale each band according to how many turns it makes during the training context length, <span class="math inline">\(r_t = L / \lambda_t\)</span>, where <span class="math inline">\(\lambda_t = 2\pi / \theta_t\)</span> is its wavelength. This NTK-by-parts interpolation <a href="#ref-15">15</a> is</p>
+<p><span class="math display">\[
+\theta&#39;_t = (1 - \gamma_t)\, \frac{\theta_t}{s} + \gamma_t\, \theta_t, \qquad \gamma_t = \min\left(1, \max\left(0, \frac{r_t - \alpha}{\beta - \alpha}\right)\right),
+\]</span></p>
+<p>with <span class="math inline">\(\alpha = 1\)</span>, <span class="math inline">\(\beta = 32\)</span> for Llama. Fast bands (<span class="math inline">\(r_t &gt; \beta\)</span>) have seen every angle, so they stay unchanged. Slow bands (<span class="math inline">\(r_t &lt; \alpha\)</span>) never finish one turn, so they are scaled by the full <span class="math inline">\(1/s\)</span> as in PI. Bands in between are blended.</p>
+<blockquote>
+<p>💡 <strong>My understanding</strong><br />
+Both methods scale the rotation speed of each band by a factor between <span class="math inline">\(1\)</span> (unchanged) and <span class="math inline">\(1/s\)</span> (as in PI). NTK-aware scaling spreads this factor over all bands geometrically in the band index <span class="math inline">\(t\)</span>: <span class="math inline">\(s^{-2t/(d-2)}\)</span> goes from <span class="math inline">\(1\)</span> at the fastest band to <span class="math inline">\(1/s\)</span> only at the slowest one. YaRN instead interpolates linearly in the number of turns <span class="math inline">\(r_t\)</span> (i.e. in the frequency, not the band index), and <span class="math inline">\(\alpha\)</span> and <span class="math inline">\(\beta\)</span> set the blending range in turns: bands with <span class="math inline">\(r_t &gt; \beta\)</span> keep factor <span class="math inline">\(1\)</span>, bands with <span class="math inline">\(r_t &lt; \alpha\)</span> get the full <span class="math inline">\(1/s\)</span>.</p>
+</blockquote>
+<p>As a longer context also flattens the attention, YaRN sharpens it with a temperature <span class="math inline">\(\tau\)</span>, applied by scaling both <span class="math inline">\(q\)</span> and <span class="math inline">\(k\)</span> by <span class="math inline">\(\sqrt{1/\tau}\)</span>:</p>
+<p><span class="math display">\[
+\mathrm{softmax}\left(\frac{q_i^\top k_j}{\tau\sqrt{d}}\right), \qquad \sqrt{1/\tau} = 0.1 \ln s + 1 .
+\]</span></p>
+<p>Llama 2 7B / 13B (trained on 4096) reach 64k (<span class="math inline">\(s = 16\)</span>) with 400 fine-tuning steps and 128k (<span class="math inline">\(s = 32\)</span>) with 200 more, using about 0.1% of the pre-training data.</p>
+<h2 id="remapping-the-relative-distance">2.2 Remapping the relative distance</h2>
+<p><strong>Notation</strong></p>
+<div style="overflow-x:auto"><table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Symbol</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><span class="math inline">\(\delta(i,j)\)</span></td>
+<td>Remapped relative distance between query i and key j.</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(s_\delta(i,j)\)</span></td>
+<td>Attention logit using the remapped distance; original frequencies are retained.</td>
+</tr>
+</tbody>
+</table></div>
+<p>These methods keep <span class="math inline">\(\theta_t\)</span> and replace <span class="math inline">\(i - j\)</span> with a mapped distance <span class="math inline">\(\delta(i, j)\)</span>:</p>
+<p><span class="math display">\[
+s_{\delta}(i,j) = \mathrm{Re}\left[ \sum_{t} \tilde{q}_i^{(t)}\, \overline{\tilde{k}_j^{(t)}}\, \exp(\mathrm{i}\, \delta(i,j)\, \theta_t) \right], \qquad j \le i.
+\]</span></p>
+<p>They all keep the exact distance for nearby tokens, which language modeling depends on, and give far tokens a coarser distance. They differ in how coarse it is.</p>
+<h3 id="rerope">2.2.1 ReRoPE</h3>
+<p><strong>Notation</strong></p>
+<div style="overflow-x:auto"><table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Symbol</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><span class="math inline">\(w\)</span></td>
+<td>Local-window distance threshold, smaller than training length L.</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\min(i-j,w)\)</span></td>
+<td>Exact local distance, capped at w for remote tokens.</td>
+</tr>
+</tbody>
+</table></div>
+<p>Rectified RoPE <a href="#ref-16">16</a> is the coarsest case. It caps the distance at a window <span class="math inline">\(w &lt; L\)</span>, so all tokens beyond <span class="math inline">\(w\)</span> look equally far:</p>
+<p><span class="math display">\[
+\delta(i,j) = \min(i - j, w).
+\]</span></p>
+<p>On Llama 2 13B with <span class="math inline">\(w = 1024\)</span>, the loss is 1.50 / 1.43 / 1.40 at 4k / 8k / 16k, while plain RoPE jumps from 1.50 at 4k to 8.86 at 8k. Its implementation needs two attention passes and, at the time of An et al. <a href="#ref-17">17</a>, was not compatible with FlashAttention.</p>
+<p>This is an engineering limitation rather than an algorithmic one. ReRoPE needs two logits per query-key pair, the usual RoPE one and one with the fixed distance <span class="math inline">\(w\)</span>, and picks one of them before the softmax. The stock FlashAttention kernel does not expose the logits, so this needs a custom kernel or a merge of several standard attention calls. Jet-Long (2.3.2) does exactly this for a similar local / remote split and keeps 83–88% of the FlashAttention-3 prefill throughput.</p>
+<h3 id="self-extend">2.2.2 Self-Extend</h3>
+<p><strong>Notation</strong></p>
+<div style="overflow-x:auto"><table>
+<thead>
+<tr class="header">
+<th>Symbol</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><span class="math inline">\(G,w\)</span></td>
+<td>Group size and local-window distance threshold.</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\lfloor x\rfloor\)</span></td>
+<td>Floor: largest integer no greater than x.</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\lfloor i/G\rfloor,\lfloor j/G\rfloor\)</span></td>
+<td>Query/key group indices.</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(L,L&#39;\)</span></td>
+<td>Training context length and desired extended length.</td>
+</tr>
+</tbody>
+</table></div>
+<p>Instead of one distance for all far tokens, Jin et al. <a href="#ref-18">18</a> group them: with a neighbor window <span class="math inline">\(w\)</span> and a group size <span class="math inline">\(G\)</span>, the tokens of a group share the position <span class="math inline">\(\lfloor i / G \rfloor\)</span>:</p>
+<p><span class="math display">\[
+\delta(i,j) =
+\begin{cases}
+i - j &amp; i - j \le w \\
+\lfloor i / G \rfloor - \lfloor j / G \rfloor + w - \lfloor w / G \rfloor &amp; \text{otherwise.}
+\end{cases}
+\]</span></p>
+<p>The shift <span class="math inline">\(w - \lfloor w / G \rfloor\)</span> joins the two parts smoothly, and the context is extended up to <span class="math inline">\((L - w)G + w\)</span>. ReRoPE is the special case where <span class="math inline">\(G\)</span> is so large that all far tokens fall into one group.</p>
+<figure>
+<img src="/images/positional-encodings/selfextend.png" alt="Mapped distance for a query at i = 40: exact within w, a staircase for far tokens (Self-Extend), flat for ReRoPE" />
+<figcaption aria-hidden="true">Mapped distance for a query at i = 40: exact within w, a staircase for far tokens (Self-Extend), flat for ReRoPE</figcaption>
+</figure>
+<p>For a query at position <span class="math inline">\(i\)</span>, nearby tokens keep their exact distance, while far tokens are grouped <span class="math inline">\(G\)</span> at a time onto the same position, so the distance becomes a staircase (figure above, <span class="math inline">\(w = 8\)</span>, <span class="math inline">\(G = 4\)</span>).</p>
+<p><span class="math inline">\(G\)</span> is chosen in advance from the target length <span class="math inline">\(L&#39;\)</span>: to cover <span class="math inline">\(L&#39;\)</span> we need <span class="math inline">\((L - w)G + w \ge L&#39;\)</span>, i.e. <span class="math inline">\(G \ge (L&#39; - w)/(L - w)\)</span>. For example, Llama 2 with <span class="math inline">\(L = 4096\)</span> and <span class="math inline">\(w = 1024\)</span> needs <span class="math inline">\(G \ge 5\)</span> for 16k. Since <span class="math inline">\(G\)</span> is fixed and groups are defined by absolute positions <span class="math inline">\(\lfloor j/G \rfloor\)</span>, the group of a cached key never changes as the sequence grows, so its grouped rotation can be cached as well. The cost is two sets of logits (neighbor and grouped) merged before the softmax.</p>
+<p>Without fine-tuning, the perplexity of Llama-2-7B-chat on PG-19 stays around 9 up to 12288, while the original model exceeds <span class="math inline">\(10^3\)</span> from 6144. Mistral 7B reaches 100% on passkey retrieval, whereas a sliding window has low perplexity but cannot retrieve anything outside the window, so low perplexity alone does not prove long-context ability.</p>
+<h3 id="dual-chunk-attention-dca">2.2.3 Dual Chunk Attention (DCA)</h3>
+<p><strong>Notation</strong></p>
+<div style="overflow-x:auto"><table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Symbol</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><span class="math inline">\(c\)</span></td>
+<td>Chunk size, smaller than L; not the complex magnitude c from §1.4.1.</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(a,b\)</span></td>
+<td>Query/key positions within their chunks: i mod c and j mod c.</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\lfloor i/c\rfloor,\lfloor j/c\rfloor\)</span></td>
+<td>Query/key chunk indices.</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\bmod,L\)</span></td>
+<td>Remainder operation and training context length.</td>
+</tr>
+</tbody>
+</table></div>
+<p>An et al. <a href="#ref-17">17</a> split the sequence into chunks of size <span class="math inline">\(c &lt; L\)</span>. With <span class="math inline">\(a = i \bmod c\)</span> and <span class="math inline">\(b = j \bmod c\)</span> the positions inside each chunk,</p>
+<p><span class="math display">\[
+\delta(i,j) =
+\begin{cases}
+a - b &amp; \lfloor i/c \rfloor - \lfloor j/c \rfloor = 0 \quad \text{(intra-chunk)} \\
+\min(c + a, L - 1) - b &amp; \lfloor i/c \rfloor - \lfloor j/c \rfloor = 1 \quad \text{(successive-chunk)} \\
+L - 1 - b &amp; \lfloor i/c \rfloor - \lfloor j/c \rfloor &gt; 1 \quad \text{(inter-chunk)}
+\end{cases}
+\]</span></p>
+<p>Intra-chunk attention keeps the exact distance. Successive-chunk attention also keeps it for the first <span class="math inline">\(L - c\)</span> positions of a chunk, so tokens right after a boundary do not lose their neighbors. Inter-chunk attention gives every query the largest position <span class="math inline">\(L - 1\)</span>, so far keys only keep their order inside a chunk.</p>
+<p>Since <span class="math inline">\(a \le c - 1\)</span>, the cap <span class="math inline">\(\min(c + a, L - 1)\)</span> only takes effect when <span class="math inline">\(2c &gt; L\)</span>. Otherwise the whole previous chunk is within distance <span class="math inline">\(L - 1\)</span> and successive-chunk attention is exact for every key. The example in An et al. <a href="#ref-17">17</a> uses <span class="math inline">\(c = 6\)</span> with <span class="math inline">\(L = 10\)</span>, i.e. <span class="math inline">\(c &gt; L/2\)</span>.</p>
+<p>In implementation, each key is rotated once at its in-chunk position <span class="math inline">\(b\)</span> and cached. Each query is rotated to three positions, <span class="math inline">\(a\)</span>, <span class="math inline">\(\min(c + a, L - 1)\)</span> and <span class="math inline">\(L - 1\)</span>, and uses the one that matches the chunk of the key. The three cases cover disjoint sets of keys (same chunk, previous chunk, earlier chunks), so attention is computed as three standard FlashAttention calls merged by their log-sum-exp statistics, with the same total cost as full attention.</p>
+<p>DCA can be applied on top of PI or NTK-aware models. Without fine-tuning, it extends Llama 2 70B from 4k to 96k with a perplexity increase of 0.56.</p>
+<h3 id="dimension-wise-positional-embeddings-manipulation-dpe">2.2.4 Dimension-Wise Positional Embeddings Manipulation (DPE)</h3>
+<p><strong>Notation</strong></p>
+<div style="overflow-x:auto"><table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Symbol</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><span class="math inline">\(g,e_g\)</span></td>
+<td>Frequency-group index and measured effective length of group g.</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(l\)</span></td>
+<td>Current sequence length; not the layer index l in §1.3.</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\sigma_g\)</span></td>
+<td>Distance-compression factor ⌊l/e_g⌋ for group g, in the extension regime where it is positive.</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\delta_t(i,j)\)</span></td>
+<td>Remapped distance specifically for band t.</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\lVert q^{(t)}\rVert\lVert k^{(t)}\rVert\)</span></td>
+<td>Product of query/key pair norms, used as a contribution measure (position indices omitted).</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(w,t,d\)</span></td>
+<td>Local-window threshold, pair index, and even head dimension.</td>
+</tr>
+</tbody>
+</table></div>
+<p>The methods above apply the same <span class="math inline">\(\delta\)</span> to all bands. Lu et al. <a href="#ref-19">19</a> remap each band separately, based on two findings on Llama 3 8B:</p>
+<ul>
+<li>Bands have different effective lengths: the fastest and the slowest bands still work when the distance exceeds the training range, while the middle bands fail immediately.</li>
+<li>Only some bands matter: most of the contribution <span class="math inline">\(\lVert q^{(t)} \rVert \lVert k^{(t)} \rVert\)</span> comes from a few bands, which differ across heads and layers.</li>
+</ul>
+<p>DPE therefore splits the bands into 8 groups and measures the effective length <span class="math inline">\(e_g\)</span> of each group with a retrieval task. For each head, it selects the top-48 bands by the contribution above and remaps only these bands, leaving the others at <span class="math inline">\(i - j\)</span>. For a selected band <span class="math inline">\(t\)</span> in group <span class="math inline">\(g\)</span>, with a local window <span class="math inline">\(w = 1\)</span>k,</p>
+<p><span class="math display">\[
+\delta_t(i,j) =
+\begin{cases}
+\lfloor (i - j - w) / \sigma_g \rfloor + w &amp; i - j &gt; w \\
+i - j &amp; \text{otherwise,}
+\end{cases}
+\qquad \sigma_g = \lfloor l / e_g \rfloor ,
+\]</span></p>
+<p>where <span class="math inline">\(l\)</span> is the sequence length. Without fine-tuning, DPE extends Llama 3 8B from 8k to 128k with a Needle-in-a-Haystack accuracy of 92.5% (Self-Extend: 89.5%, ReRoPE: 78%, DCA: 53%, YaRN: 0%).</p>
+<p>Unlike YaRN, which fully interpolates the slowest bands, DPE finds that they tolerate longer distances. A possible explanation (not from the paper): with Llama 3’s base <span class="math inline">\(500000\)</span> (instead of <span class="math inline">\(10000\)</span>), the slowest bands (the last group, <span class="math inline">\(t \ge 56\)</span>) rotate less than a quarter turn even at 128k, while the middle bands make at most a few turns within 8k but many more at 128k.</p>
+<h2 id="following-the-current-length">2.3 Following the current length</h2>
+<p><strong>Notation</strong></p>
+<div style="overflow-x:auto"><table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Symbol</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><span class="math inline">\(l,L,s,G\)</span></td>
+<td>Current length, training length, frequency-extension factor, and distance-group size.</td>
+</tr>
+</tbody>
+</table></div>
+<p>The methods above fix <span class="math inline">\(s\)</span> or <span class="math inline">\(G\)</span> up front, which is a trade-off: a large value hurts short inputs, and a small value breaks on long inputs. Instead, the setting can follow the current sequence length <span class="math inline">\(l\)</span>, so that the model stays unchanged for <span class="math inline">\(l \le L\)</span>.</p>
+<h3 id="dynamic-scaling">2.3.1 Dynamic scaling</h3>
+<p><strong>Notation</strong></p>
+<div style="overflow-x:auto"><table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Symbol</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><span class="math inline">\(s=\max(1,l/L)\)</span></td>
+<td>Length-dependent extension factor; equals 1 within the training length.</td>
+</tr>
+</tbody>
+</table></div>
+<p>Frequency methods can update <span class="math inline">\(s\)</span> at every forward pass, so performance degrades gracefully instead of abruptly beyond <span class="math inline">\(L&#39;\)</span>:</p>
+<p><span class="math display">\[
+s = \max(1, l / L).
+\]</span></p>
+<p>Combined with NTK-aware scaling this is Dynamic NTK <a href="#ref-20">20</a>. Dynamic-YaRN gives more than 2× extension without any fine-tuning. As the rotation of every token changes with <span class="math inline">\(s\)</span>, the KV cache must store the keys <em>before</em> applying RoPE.</p>
+<blockquote>
+<p>💡 Dynamic NTK and Dynamic-YaRN are just dynamic versions of NTK and YaRN. They need to rotate all keys for every pass.</p>
+</blockquote>
+<h3 id="jet-long">2.3.2 Jet-Long</h3>
+<p><strong>Notation</strong></p>
+<div style="overflow-x:auto"><table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Symbol</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><span class="math inline">\(G=\max(1,\lceil l/L\rceil)\)</span></td>
+<td>Dynamic group size; ceil rounds up to the nearest integer.</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(w,i,j\)</span></td>
+<td>Local-window distance threshold and query/key positions.</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(f(k_j,j)\)</span></td>
+<td>Key already rotated at its original position and kept in the KV cache.</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\lfloor j/G\rfloor-j\)</span></td>
+<td>Position correction used to rotate a cached key into its current grouped position.</td>
+</tr>
+</tbody>
+</table></div>
+<p>Tang et al. <a href="#ref-21">21</a> apply this idea to grouping. They use the smallest group size that keeps all positions in range:</p>
+<p><span class="math display">\[
+G = \max\left(1, \lceil l / L \rceil\right), \qquad
+\delta(i,j) =
+\begin{cases}
+i - j &amp; i - j \le w \\
+\lfloor i / G \rfloor - \lfloor j / G \rfloor &amp; \text{otherwise.}
+\end{cases}
+\]</span></p>
+<p>The only hyperparameter is <span class="math inline">\(w\)</span> (2048 in their main experiments). As <span class="math inline">\(G\)</span> changes during generation, the KV cache keeps the original rotated keys <span class="math inline">\(f(k_j, j)\)</span>, and a correction rotation by <span class="math inline">\(\lfloor j/G \rfloor - j\)</span> is applied on the fly (likewise for the query), because rotations add up. The cache is never rewritten, but the hidden states of earlier tokens are not recomputed either.</p>
+<p><span class="math inline">\(G\)</span> is computed from the current length: prefill uses the full prompt length, and decoding updates it as tokens are added, so <span class="math inline">\(G\)</span> only changes when <span class="math inline">\(l\)</span> crosses a multiple of <span class="math inline">\(L\)</span>. The correction rotation is applied to all remote keys at every step, but it is element-wise and fused into the attention kernel rather than written back to the cache; with this, 8B decoding reaches 1.04–1.08× the FlashAttention-3 throughput.</p>
+<p>On Qwen3 1.7B / 4B / 8B (trained on 32k) up to 128k without fine-tuning, Jet-Long leads the strongest baseline on RULER by 4.79 / 2.18 / 2.03 points, with 83–88% of the FlashAttention-3 prefill throughput at 64k–128k.</p>
+<blockquote>
+<p>💡 Jet-Long is the dynamic version of Self-Extend. Similarly, it needs to rotate all keys for every pass.</p>
+</blockquote>
+<h1 id="references">References</h1>
+<p><a id="ref-1"></a></p>
+<p><strong>[1]</strong> VASWANI A, SHAZEER N, PARMAR N, et al. Attention is All you Need[C/OL]//GUYON I, LUXBURG U V, BENGIO S, et al. Advances in Neural Information Processing Systems. Curran Associates, Inc., 2017. <a href="https://proceedings.neurips.cc/paper_files/paper/2017/file/3f5ee243547dee91fbd053c1c4a845aa-Paper.pdf" class="uri">https://proceedings.neurips.cc/paper_files/paper/2017/file/3f5ee243547dee91fbd053c1c4a845aa-Paper.pdf</a>.</p>
+<p><a id="ref-2"></a></p>
+<p><strong>[2]</strong> DEVLIN J, CHANG M-W, LEE K, et al. BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding[C]//BURSTEIN J, DORAN C, SOLORIO T. Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies, Volume 1 (Long and Short Papers). Minneapolis, Minnesota: Association for Computational Linguistics, 2019: 4171-4186. DOI: <a href="https://doi.org/10.18653/v1/N19-1423">10.18653/v1/N19-1423</a>.</p>
+<p><a id="ref-3"></a></p>
+<p><strong>[3]</strong> RADFORD A, NARASIMHAN K, SALIMANS T, et al. Improving language understanding by generative pre-training[J]. 2018.</p>
+<p><a id="ref-4"></a></p>
+<p><strong>[4]</strong> PENG B, QUESNELLE J, FAN H, et al. YaRN: Efficient Context Window Extension of Large Language Models[C/OL]//The Twelfth International Conference on Learning Representations. 2024. <a href="https://openreview.net/forum?id=wHBfxhZu1u" class="uri">https://openreview.net/forum?id=wHBfxhZu1u</a>.</p>
+<p><a id="ref-5"></a></p>
+<p><strong>[5]</strong> RAFFEL C, SHAZEER N, ROBERTS A, et al. Exploring the Limits of Transfer Learning with a Unified Text-to-Text Transformer[J/OL]. Journal of Machine Learning Research, 2020, 21(140): 1-67. <a href="http://jmlr.org/papers/v21/20-074.html" class="uri">http://jmlr.org/papers/v21/20-074.html</a>.</p>
+<p><a id="ref-6"></a></p>
+<p><strong>[6]</strong> SU J, AHMED M, LU Y, et al. RoFormer: Enhanced transformer with Rotary Position Embedding[J]. Neurocomputing, 2024, 568: 127063. DOI: <a href="https://doi.org/10.1016/j.neucom.2023.127063">10.1016/j.neucom.2023.127063</a>.</p>
+<p><a id="ref-7"></a></p>
+<p><strong>[7]</strong> HAVIV A, RAM O, PRESS O, et al. Transformer Language Models without Positional Encodings Still Learn Positional Information[C]//GOLDBERG Y, KOZAREVA Z, ZHANG Y. Findings of the Association for Computational Linguistics: EMNLP 2022. Abu Dhabi, United Arab Emirates: Association for Computational Linguistics, 2022: 1382-1390. DOI: <a href="https://doi.org/10.18653/v1/2022.findings-emnlp.99">10.18653/v1/2022.findings-emnlp.99</a>.</p>
+<p><a id="ref-8"></a></p>
+<p><strong>[8]</strong> BARBERO F, VITVITSKYI A, PERIVOLAROPOULOS C, et al. Round and Round We Go! What makes Rotary Positional Encodings useful?[C/OL]//The Thirteenth International Conference on Learning Representations. 2025. <a href="https://openreview.net/forum?id=GtvuNrk58a" class="uri">https://openreview.net/forum?id=GtvuNrk58a</a>.</p>
+<p><a id="ref-9"></a></p>
+<p><strong>[9]</strong> SUN Y, DONG L, PATRA B, et al. A Length-Extrapolatable Transformer[C]//ROGERS A, BOYD-GRABER J, OKAZAKI N. Proceedings of the 61st Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers). Toronto, Canada: Association for Computational Linguistics, 2023: 14590-14604. DOI: <a href="https://doi.org/10.18653/v1/2023.acl-long.816">10.18653/v1/2023.acl-long.816</a>.</p>
+<p><a id="ref-10"></a></p>
+<p><strong>[10]</strong> PRESS O, SMITH N, LEWIS M. Train Short, Test Long: Attention with Linear Biases Enables Input Length Extrapolation[C/OL]//International Conference on Learning Representations. 2022. <a href="https://openreview.net/forum?id=R8sQPpGCv0" class="uri">https://openreview.net/forum?id=R8sQPpGCv0</a>.</p>
+<p><a id="ref-11"></a></p>
+<p><strong>[11]</strong> CHEN S, WONG S, CHEN L, et al. Extending Context Window of Large Language Models via Positional Interpolation[Z/OL]. arXiv:2306.15595, 2023. <a href="https://arxiv.org/abs/2306.15595" class="uri">https://arxiv.org/abs/2306.15595</a>.</p>
+<p><a id="ref-12"></a></p>
+<p><strong>[12]</strong> kaiokendev. Things I’m Learning While Training SuperHOT[EB/OL]. Blog post, (2023). <a href="https://kaiokendev.github.io/til#extending-context-to-8k" class="uri">https://kaiokendev.github.io/til#extending-context-to-8k</a>.</p>
+<p><a id="ref-13"></a></p>
+<p><strong>[13]</strong> bloc97. NTK-Aware Scaled RoPE allows LLaMA models to have extended (8k+) context size without any fine-tuning[EB/OL]. Reddit post, r/LocalLLaMA, (2023). <a href="https://www.reddit.com/r/LocalLLaMA/comments/14lz7j5/ntkaware_scaled_rope_allows_llama_models_to_have/" class="uri">https://www.reddit.com/r/LocalLLaMA/comments/14lz7j5/ntkaware_scaled_rope_allows_llama_models_to_have/</a>.</p>
+<p><a id="ref-14"></a></p>
+<p><strong>[14]</strong> TANCIK M, SRINIVASAN P, MILDENHALL B, et al. Fourier Features Let Networks Learn High Frequency Functions in Low Dimensional Domains[C/OL]//LAROCHELLE H, RANZATO M, HADSELL R, et al. Advances in Neural Information Processing Systems. Curran Associates, Inc., 2020: 7537-7547. <a href="https://proceedings.neurips.cc/paper_files/paper/2020/file/55053683268957697aa39fba6f231c68-Paper.pdf" class="uri">https://proceedings.neurips.cc/paper_files/paper/2020/file/55053683268957697aa39fba6f231c68-Paper.pdf</a>.</p>
+<p><a id="ref-15"></a></p>
+<p><strong>[15]</strong> bloc97. Add NTK-Aware interpolation “by parts” correction[EB/OL]. GitHub pull request, (2023). <a href="https://github.com/jquesnelle/yarn/pull/1" class="uri">https://github.com/jquesnelle/yarn/pull/1</a>.</p>
+<p><a id="ref-16"></a></p>
+<p><strong>[16]</strong> SU J. Rectified Rotary Position Embeddings[EB/OL]. GitHub repository, (2023). <a href="https://github.com/bojone/rerope" class="uri">https://github.com/bojone/rerope</a>.</p>
+<p><a id="ref-17"></a></p>
+<p><strong>[17]</strong> AN C, HUANG F, ZHANG J, et al. Training-Free Long-Context Scaling of Large Language Models[C/OL]//SALAKHUTDINOV R, KOLTER Z, HELLER K, et al. Proceedings of the 41st International Conference on Machine Learning. PMLR, 2024: 1493-1510. <a href="https://proceedings.mlr.press/v235/an24b.html" class="uri">https://proceedings.mlr.press/v235/an24b.html</a>.</p>
+<p><a id="ref-18"></a></p>
+<p><strong>[18]</strong> JIN H, HAN X, YANG J, et al. LLM Maybe LongLM: SelfExtend LLM Context Window Without Tuning[C/OL]//SALAKHUTDINOV R, KOLTER Z, HELLER K, et al. Proceedings of the 41st International Conference on Machine Learning. PMLR, 2024: 22099-22114. <a href="https://proceedings.mlr.press/v235/jin24b.html" class="uri">https://proceedings.mlr.press/v235/jin24b.html</a>.</p>
+<p><a id="ref-19"></a></p>
+<p><strong>[19]</strong> LU Y, ZHAO W, ZHOU X, et al. Effective Length Extrapolation via Dimension-Wise Positional Embeddings Manipulation[C/OL]//Conference on Language Modeling. 2025. <a href="https://openreview.net/forum?id=Tahpc3iAnO" class="uri">https://openreview.net/forum?id=Tahpc3iAnO</a>.</p>
+<p><a id="ref-20"></a></p>
+<p><strong>[20]</strong> emozilla. Dynamically Scaled RoPE further increases performance of long context LLaMA with zero fine-tuning[EB/OL]. Reddit post, r/LocalLLaMA, (2023). <a href="https://www.reddit.com/r/LocalLLaMA/comments/14mrgpr/dynamically_scaled_rope_further_increases/" class="uri">https://www.reddit.com/r/LocalLLaMA/comments/14mrgpr/dynamically_scaled_rope_further_increases/</a>.</p>
+<p><a id="ref-21"></a></p>
+<p><strong>[21]</strong> TANG H, WANG Z, GU Y, et al. Jet-Long: Efficient Long-Context Extension with Dynamic Bifocal RoPE[Z/OL]. arXiv:2607.07740, 2026. <a href="https://arxiv.org/abs/2607.07740" class="uri">https://arxiv.org/abs/2607.07740</a>.</p>
