@@ -19,7 +19,7 @@ translations:
 <p>本文回顾了常见的位置编码方法，以及扩展语言模型上下文长度的各种思路，从正弦位置嵌入、相对位置偏置，一直讲到 RoPE 及其扩展。在介绍数学形式的同时，我也分享自己对这些方法的理解：它们如何编码位置、如何与词元内容交互，以及超出训练上下文长度后会有怎样的表现——为什么有效、在哪里失效，以及这些局限揭示了什么。本文希望将位置编码背后的直觉，与上下文扩展中的设计选择和权衡联系起来。</p>
 <h1 id="位置编码">1. 位置编码</h1>
 <h2 id="正弦位置编码">1.1 正弦位置编码</h2>
-<p><strong>符号说明</strong></p>
+<details class="notation-guide" style="margin:1em 0"><summary style="cursor:pointer;font-weight:600;padding:.4em 0;display:list-item">符号说明</summary>
 <div style="overflow-x:auto"><table>
 <colgroup>
 <col style="width: 50%" />
@@ -58,6 +58,7 @@ translations:
 </tr>
 </tbody>
 </table></div>
+</details>
 <p>最初的 Transformer<a href="#ref-1">1</a> 在每个位置 <span class="math inline">\(pos\)</span> 的词元嵌入上加上一个固定的编码。对于 <span class="math inline">\(i = 0, \dots, d/2-1\)</span>，其中 <span class="math inline">\(d\)</span> 是模型维度，</p>
 <p><span class="math display">\[
 \mathrm{PE}(pos, 2i) = \sin\left(\frac{pos}{10000^{2i/d}}\right), \qquad \mathrm{PE}(pos, 2i + 1) = \cos\left(\frac{pos}{10000^{2i/d}}\right).
@@ -74,7 +75,7 @@ translations:
 <li>位置数量在训练时就已固定，因此模型根本无法接受更长的输入。</li>
 </ul>
 <h2 id="t5-相对位置偏置5">1.3 T5 相对位置偏置<a href="#ref-5">5</a></h2>
-<p><strong>符号说明</strong></p>
+<details class="notation-guide" style="margin:1em 0"><summary style="cursor:pointer;font-weight:600;padding:.4em 0;display:list-item">符号说明</summary>
 <div style="overflow-x:auto"><table>
 <colgroup>
 <col style="width: 50%" />
@@ -129,6 +130,7 @@ translations:
 </tr>
 </tbody>
 </table></div>
+</details>
 <p>T5 不在各个位置上添加位置嵌入，而是直接为每个注意力得分（logit）加上一个偏置。这个偏置由相对位置决定。</p>
 <p>对于第 <span class="math inline">\(l\)</span> 层、第 <span class="math inline">\(h\)</span> 个注意力头中的位置 <span class="math inline">\(i\)</span> 和 <span class="math inline">\(j\)</span>，注意力得分 <span class="math inline">\(s_{i, j}^{(h, l)}\)</span> 定义为</p>
 <p><span class="math display">\[
@@ -176,7 +178,7 @@ s(i, j)^{(l,h)} = (q_i^{(l,h)})^\top k_j^{(l,h)} + b_{\textrm{bucket}(\mid i-j\m
 </table></div>
 <p><br /></p>
 <h3 id="t5-相对位置偏置是一种带偏置的-nope">1.3.1 T5 相对位置偏置是一种带偏置的 NoPE</h3>
-<p><strong>符号说明</strong></p>
+<details class="notation-guide" style="margin:1em 0"><summary style="cursor:pointer;font-weight:600;padding:.4em 0;display:list-item">符号说明</summary>
 <div style="overflow-x:auto"><table>
 <thead>
 <tr class="header">
@@ -199,6 +201,7 @@ s(i, j)^{(l,h)} = (q_i^{(l,h)})^\top k_j^{(l,h)} + b_{\textrm{bucket}(\mid i-j\m
 </tr>
 </tbody>
 </table></div>
+</details>
 <blockquote>
 <p><strong>我对相对位置偏置的思考</strong></p>
 <p>对于加法式位置编码 <span class="math inline">\(p\)</span>，将其加到 <span class="math inline">\(q\)</span> 和 <span class="math inline">\(k\)</span> 上，等价于在注意力得分上添加偏置：</p>
@@ -213,7 +216,7 @@ s(i, j)^{(l,h)} = (q_i^{(l,h)})^\top k_j^{(l,h)} + b_{\textrm{bucket}(\mid i-j\m
 <p>不过，既然缺少这种语义依赖，T5 的相对位置偏置为什么仍然有效？一个原因是，模型可以跨层建立这种依赖：具有很强局部偏好的注意力头，可以将前一个词元的信息复制到当前隐藏状态中，这样后续层的 <span class="math inline">\(q\)</span> 和 <span class="math inline">\(k\)</span> 就已经包含了感知位置信息的内容。在因果解码器中，因果掩码也会透露顺序信息，因为一个词元可以根据自己能看到多少个词元来推断自身位置。这也是为什么不使用任何位置编码（NoPE）的因果语言模型，仍然能够学到位置信息<a href="#ref-7">7</a>。</p>
 <p>所以，T5 相对位置偏置基本上就是 NoPE，再加上一个按注意力头分别学习、以分桶后的相对距离为输入的偏置。这个偏置没有被约束为随距离衰减，而且所有超过 <span class="math inline">\(D\)</span> 的距离都共用最后一个桶。</p>
 <h2 id="旋转位置嵌入rope">1.4 旋转位置嵌入（RoPE）</h2>
-<p><strong>符号说明</strong></p>
+<details class="notation-guide" style="margin:1em 0"><summary style="cursor:pointer;font-weight:600;padding:.4em 0;display:list-item">符号说明</summary>
 <div style="overflow-x:auto"><table>
 <colgroup>
 <col style="width: 50%" />
@@ -244,13 +247,14 @@ s(i, j)^{(l,h)} = (q_i^{(l,h)})^\top k_j^{(l,h)} + b_{\textrm{bucket}(\mid i-j\m
 </tr>
 </tbody>
 </table></div>
+</details>
 <p>如上所述，加法式位置编码通常会使注意力得分依赖绝对位置，而 T5 相对位置偏置又缺少语义与位置的交互。Su 等人 <a href="#ref-6">6</a> 随后提出了 RoPE：既保留这种交互，又使它只依赖相对位置，同时比基于分桶的偏置更具表达能力。</p>
 <p>RoPE 的目标是以一种特定方式编码位置，使注意力得分 <span class="math inline">\(s(i,j)\)</span> 只成为内容和相对距离的函数：</p>
 <p><span class="math display">\[
 s_{\textrm{RoPE}}(i,j) = f(q_i, i)^{\top} f(k_j, j) = g(q_i, k_j, i-j)
 \]</span></p>
 <h3 id="rope-背后的直觉">1.4.1 RoPE 背后的直觉</h3>
-<p><strong>符号说明</strong></p>
+<details class="notation-guide" style="margin:1em 0"><summary style="cursor:pointer;font-weight:600;padding:.4em 0;display:list-item">符号说明</summary>
 <div style="overflow-x:auto"><table>
 <thead>
 <tr class="header">
@@ -281,6 +285,7 @@ s_{\textrm{RoPE}}(i,j) = f(q_i, i)^{\top} f(k_j, j) = g(q_i, k_j, i-j)
 </tr>
 </tbody>
 </table></div>
+</details>
 <p>任意复数都可以用模长 <span class="math inline">\(c\)</span> 和相对于实轴正方向的角度 <span class="math inline">\(\theta\)</span> 来表示：</p>
 <p><span class="math display">\[
 z = c\exp(\mathrm{i}\theta)
@@ -299,7 +304,7 @@ z_1 \times \bar{z}_2 = c_1 c_2 \exp(\mathrm{i}(\theta_1 - \theta_2))
 <figcaption aria-hidden="true">两个复数相乘：模长相乘，角度相加</figcaption>
 </figure>
 <h3 id="rope">1.4.2 RoPE</h3>
-<p><strong>符号说明</strong></p>
+<details class="notation-guide" style="margin:1em 0"><summary style="cursor:pointer;font-weight:600;padding:.4em 0;display:list-item">符号说明</summary>
 <div style="overflow-x:auto"><table>
 <colgroup>
 <col style="width: 50%" />
@@ -334,6 +339,7 @@ z_1 \times \bar{z}_2 = c_1 c_2 \exp(\mathrm{i}(\theta_1 - \theta_2))
 </tr>
 </tbody>
 </table></div>
+</details>
 <p>为简化说明，我们以单头注意力介绍 RoPE，并忽略注意力掩码（因果掩码）。</p>
 <p>设 <span class="math inline">\(q_i, k_j \in \mathbb{R}^{d}\)</span>（<span class="math inline">\(d\)</span> 为偶数）分别为位置 <span class="math inline">\(i\)</span> 处的查询向量和位置 <span class="math inline">\(j\)</span> 处的键向量。将维度划分为 <span class="math inline">\(d/2\)</span> 对 <span class="math inline">\((2t, 2t+1)\)</span>，把每一对视为一个复数 <span class="math inline">\(\tilde{q}_i^{(t)} = q_{i,2t} + \mathrm{i}\, q_{i,2t+1}\)</span>（<span class="math inline">\(\tilde{k}_j^{(t)}\)</span> 同理），对应频率为 <span class="math inline">\(\theta_t = 10000^{-2t/d}\)</span>，<span class="math inline">\(t = 0, \dots, d/2-1\)</span>。</p>
 <p><strong>变换。</strong> 将第 <span class="math inline">\(t\)</span> 对维度旋转一个角度（位置 <span class="math inline">\(\times\, \theta_t\)</span>）：</p>
@@ -346,7 +352,7 @@ s_{\textrm{RoPE}}(i,j) = \mathrm{Re}\left[ \sum_{t=0}^{d/2-1} f(q_i, i)^{(t)}\, 
 \]</span></p>
 <p>它只通过 <span class="math inline">\(i - j\)</span> 依赖位置。</p>
 <h3 id="rope-的实现">1.4.3 RoPE 的实现</h3>
-<p><strong>符号说明</strong></p>
+<details class="notation-guide" style="margin:1em 0"><summary style="cursor:pointer;font-weight:600;padding:.4em 0;display:list-item">符号说明</summary>
 <div style="overflow-x:auto"><table>
 <thead>
 <tr class="header">
@@ -381,6 +387,7 @@ s_{\textrm{RoPE}}(i,j) = \mathrm{Re}\left[ \sum_{t=0}^{d/2-1} f(q_i, i)^{(t)}\, 
 </tr>
 </tbody>
 </table></div>
+</details>
 <p>两个复数的这一乘积可以写成</p>
 <p><span class="math display">\[
 \begin{align}
@@ -423,7 +430,7 @@ s_{\textrm{RoPE}}(i,j) = \mathrm{Re}\left[ \sum_{t=0}^{d/2-1} f(q_i, i)^{(t)}\, 
 <p>在我的理解中，RoPE 的成功在于：它提供了一种既依赖语义、又依赖相对距离，但不依赖绝对位置的位置偏置（见 1.3）。</p>
 </blockquote>
 <h2 id="xpos">1.5 XPos</h2>
-<p><strong>符号说明</strong></p>
+<details class="notation-guide" style="margin:1em 0"><summary style="cursor:pointer;font-weight:600;padding:.4em 0;display:list-item">符号说明</summary>
 <div style="overflow-x:auto"><table>
 <thead>
 <tr class="header">
@@ -454,6 +461,7 @@ s_{\textrm{RoPE}}(i,j) = \mathrm{Re}\left[ \sum_{t=0}^{d/2-1} f(q_i, i)^{(t)}\, 
 </tr>
 </tbody>
 </table></div>
+</details>
 <p>此前，人们认为模型无法处理超出训练长度的输入，是因为使用了绝对位置编码。然而，基于 RoPE 的模型虽然消除了对绝对位置的依赖，却仍然无法处理超出训练长度的输入。</p>
 <p>Sun 等人 <a href="#ref-9">9</a> 将这一问题归因于旋转较快的频带：在距离较大时，这些频带会让注意力得分振荡，而不是衰减，从而给注意力引入噪声，阻碍 RoPE 的外推。因此，他们为 RoPE 加入了显式的距离衰减。每对维度 <span class="math inline">\(t = 0, \dots, d/2-1\)</span>（与 1.4.2 中的配对索引相同，因此 <span class="math inline">\(t\)</span> 越小，频带越快）都有一个衰减率：</p>
 <p><span class="math display">\[
@@ -471,7 +479,7 @@ s_{\textrm{XPos}}(i,j) = \mathrm{Re}\left[ \sum_{t} \tilde{q}_i^{(t)}\, \overlin
 <p><strong>不过</strong>，其实验规模较小：一个与 GPT-3 Medium 相当的模型（24 层、隐藏维度 1024）从头训练，训练长度为 1024，并且仅在 arXiv 上评估到 4096，也就是训练长度的 4 倍。结合分块因果注意力后，困惑度持续下降（在 1024 / 2048 / 4096 长度下为 23.31 → 21.6 → 20.73），但普通 RoPE 配合分块因果注意力后，困惑度也不再暴涨（25.57 / 25.65，而不使用分块因果注意力时为 73.6 / 294.45）。<strong>不使用分块因果注意力时，XPos 的表现仍会退化（2048 时为 22.56，4096 时为 28.43），因此单靠衰减并没有解决外推问题，相当一部分收益来自窗口化注意力。</strong></p>
 <p>对快频带施加衰减，也许有助于处理远处词元；但对于近处词元，最好保留快频带。</p>
 <h2 id="带线性偏置的注意力alibi">1.6 带线性偏置的注意力（ALiBi）</h2>
-<p><strong>符号说明</strong></p>
+<details class="notation-guide" style="margin:1em 0"><summary style="cursor:pointer;font-weight:600;padding:.4em 0;display:list-item">符号说明</summary>
 <div style="overflow-x:auto"><table>
 <colgroup>
 <col style="width: 50%" />
@@ -502,6 +510,7 @@ s_{\textrm{XPos}}(i,j) = \mathrm{Re}\left[ \sum_{t} \tilde{q}_i^{(t)}\, \overlin
 </tr>
 </tbody>
 </table></div>
+</details>
 <p>与 XPos 类似（不过发表得更早），Press 等人 <a href="#ref-10">10</a> 提出了 ALiBi，用于降低远处词元的注意力得分。ALiBi 不向 <span class="math inline">\(q\)</span> 或 <span class="math inline">\(k\)</span> 添加位置嵌入，而是给每个注意力得分加上一个固定、不可学习的线性惩罚项：</p>
 <p><span class="math display">\[
 s_{\textrm{ALiBi}}(i,j) = q_i^\top k_j - m_h\,(i-j), \qquad j \le i,
@@ -511,7 +520,7 @@ s_{\textrm{ALiBi}}(i,j) = q_i^\top k_j - m_h\,(i-j), \qquad j \le i,
 <h3 id="alibi-是一种带距离衰减的-nope">1.6.1 ALiBi 是一种带距离衰减的 NoPE</h3>
 <p>位置偏置 <span class="math inline">\(-m_h\,(i-j)\)</span> 只依赖相对距离，不依赖语义。因此，与 T5 相对位置偏置一样，ALiBi 也是 NoPE 加上相对位置偏置，只不过这里的偏置是固定的，并且始终随距离衰减。由于大多数注意力头的衰减都很强，远处词元基本会被忽略，模型的行为类似于流式大语言模型。因此，从功能上看，ALiBi 类似于流式 NoPE，只是斜率最小的那些注意力头仍然能够看到远处词元。</p>
 <h1 id="无需训练的上下文扩展">2. 无需训练的上下文扩展</h1>
-<p><strong>符号说明</strong></p>
+<details class="notation-guide" style="margin:1em 0"><summary style="cursor:pointer;font-weight:600;padding:.4em 0;display:list-item">符号说明</summary>
 <div style="overflow-x:auto"><table>
 <thead>
 <tr class="header">
@@ -534,13 +543,14 @@ s_{\textrm{ALiBi}}(i,j) = q_i^\top k_j - m_h\,(i-j), \qquad j \le i,
 </tr>
 </tbody>
 </table></div>
+</details>
 <p>一个以长度 <span class="math inline">\(L\)</span> 的上下文训练的 RoPE 模型，之所以在更长输入上失效，主要是因为注意力得分中的角度 <span class="math inline">\((i-j)\theta_t\)</span></p>
 <p><span class="math display">\[
 s_{\textrm{RoPE}}(i,j) = \mathrm{Re}\left[ \sum_{t} \tilde{q}_i^{(t)}\, \overline{\tilde{k}_j^{(t)}}\, \exp(\mathrm{i}(i-j)\theta_t) \right]
 \]</span></p>
 <p>超出了训练时见过的范围。若要在不改变模型架构的情况下，将其用于长度 <span class="math inline">\(L&#39; = sL\)</span>（<span class="math inline">\(s &gt; 1\)</span>）的输入，可以改变频率 <span class="math inline">\(\theta_t\)</span>（2.1），也可以改变距离 <span class="math inline">\(i - j\)</span>（2.2）。这两类方法也都可以随当前序列长度动态调整，而不必事先固定参数（2.3）。</p>
 <h2 id="重新缩放频率">2.1 重新缩放频率</h2>
-<p><strong>符号说明</strong></p>
+<details class="notation-guide" style="margin:1em 0"><summary style="cursor:pointer;font-weight:600;padding:.4em 0;display:list-item">符号说明</summary>
 <div style="overflow-x:auto"><table>
 <thead>
 <tr class="header">
@@ -555,9 +565,10 @@ s_{\textrm{RoPE}}(i,j) = \mathrm{Re}\left[ \sum_{t} \tilde{q}_i^{(t)}\, \overlin
 </tr>
 </tbody>
 </table></div>
+</details>
 <p>这类方法将旋转速度从 <span class="math inline">\(\theta_t\)</span> 降低到 <span class="math inline">\(\theta&#39;_t\)</span>。它们的区别在于：每个频带分别缩放多少。</p>
 <h3 id="位置插值pi">2.1.1 位置插值（PI）</h3>
-<p><strong>符号说明</strong></p>
+<details class="notation-guide" style="margin:1em 0"><summary style="cursor:pointer;font-weight:600;padding:.4em 0;display:list-item">符号说明</summary>
 <div style="overflow-x:auto"><table>
 <thead>
 <tr class="header">
@@ -576,13 +587,14 @@ s_{\textrm{RoPE}}(i,j) = \mathrm{Re}\left[ \sum_{t} \tilde{q}_i^{(t)}\, \overlin
 </tr>
 </tbody>
 </table></div>
+</details>
 <p>Chen 等人 <a href="#ref-11">11</a>，以及同期的 kaiokendev <a href="#ref-12">12</a>，对所有频带采用相同的缩放比例：</p>
 <p><span class="math display">\[
 \theta&#39;_t = \frac{\theta_t}{s}.
 \]</span></p>
 <p>此时，位置 <span class="math inline">\(m\)</span> 的角度与原来位置 <span class="math inline">\(m/s\)</span> 的角度相同，因此直到 <span class="math inline">\(L&#39;\)</span> 的所有位置都落在训练时见过的范围内。然而，相邻词元现在只相差原来的 <span class="math inline">\(1/s\)</span> 个位置，因此快频带会损失分辨率，PI 需要依靠微调来恢复它。通过不超过 1000 步的微调，LLaMA 的上下文长度被扩展到了 32768。</p>
 <h3 id="ntk-感知缩放">2.1.2 NTK 感知缩放</h3>
-<p><strong>符号说明</strong></p>
+<details class="notation-guide" style="margin:1em 0"><summary style="cursor:pointer;font-weight:600;padding:.4em 0;display:list-item">符号说明</summary>
 <div style="overflow-x:auto"><table>
 <thead>
 <tr class="header">
@@ -601,13 +613,14 @@ s_{\textrm{RoPE}}(i,j) = \mathrm{Re}\left[ \sum_{t} \tilde{q}_i^{(t)}\, \overlin
 </tr>
 </tbody>
 </table></div>
+</details>
 <p>为保留快频带，bloc97 <a href="#ref-13">13</a> 对各频带采用非均匀缩放，其动机来自对傅里叶特征的 NTK 分析 <a href="#ref-14">14</a>：要学习高频函数，就需要高频输入。具体做法是增大 <span class="math inline">\(\theta_t\)</span> 中的底数，等价于</p>
 <p><span class="math display">\[
 \theta&#39;_t = \theta_t \cdot s^{-2t/(d-2)}.
 \]</span></p>
 <p>最快的频带保持不变，只有最慢的频带才完整地缩放至原来的 <span class="math inline">\(1/s\)</span>。在不微调的情况下，这种方法比 PI 好得多。然而，其他频带的缩放幅度都小于完整的 <span class="math inline">\(1/s\)</span> 缩放，因此其中一些频带仍会出现超出范围的角度：Peng 等人 <a href="#ref-4">4</a> 报告称，微调后它的效果不如 PI，而且 <span class="math inline">\(s\)</span> 必须设得比预期的扩展倍数更大。</p>
 <h3 id="yarn">2.1.3 YaRN</h3>
-<p><strong>符号说明</strong></p>
+<details class="notation-guide" style="margin:1em 0"><summary style="cursor:pointer;font-weight:600;padding:.4em 0;display:list-item">符号说明</summary>
 <div style="overflow-x:auto"><table>
 <colgroup>
 <col style="width: 50%" />
@@ -646,6 +659,7 @@ s_{\textrm{RoPE}}(i,j) = \mathrm{Re}\left[ \sum_{t} \tilde{q}_i^{(t)}\, \overlin
 </tr>
 </tbody>
 </table></div>
+</details>
 <p>Peng 等人 <a href="#ref-4">4</a> 根据每个频带在训练上下文长度内旋转的圈数来决定缩放程度，圈数为 <span class="math inline">\(r_t = L / \lambda_t\)</span>，其中 <span class="math inline">\(\lambda_t = 2\pi / \theta_t\)</span> 是波长。这种 NTK 分段插值 <a href="#ref-15">15</a> 的形式为</p>
 <p><span class="math display">\[
 \theta&#39;_t = (1 - \gamma_t)\, \frac{\theta_t}{s} + \gamma_t\, \theta_t, \qquad \gamma_t = \min\left(1, \max\left(0, \frac{r_t - \alpha}{\beta - \alpha}\right)\right),
@@ -661,7 +675,7 @@ s_{\textrm{RoPE}}(i,j) = \mathrm{Re}\left[ \sum_{t} \tilde{q}_i^{(t)}\, \overlin
 \]</span></p>
 <p>Llama 2 7B / 13B 的训练长度为 4096，经过 400 步微调即可达到 64k（<span class="math inline">\(s = 16\)</span>），再微调 200 步即可达到 128k（<span class="math inline">\(s = 32\)</span>），使用的数据量约为预训练数据的 0.1%。</p>
 <h2 id="重新映射相对距离">2.2 重新映射相对距离</h2>
-<p><strong>符号说明</strong></p>
+<details class="notation-guide" style="margin:1em 0"><summary style="cursor:pointer;font-weight:600;padding:.4em 0;display:list-item">符号说明</summary>
 <div style="overflow-x:auto"><table>
 <thead>
 <tr class="header">
@@ -680,13 +694,14 @@ s_{\textrm{RoPE}}(i,j) = \mathrm{Re}\left[ \sum_{t} \tilde{q}_i^{(t)}\, \overlin
 </tr>
 </tbody>
 </table></div>
+</details>
 <p>这类方法保留 <span class="math inline">\(\theta_t\)</span>，将 <span class="math inline">\(i - j\)</span> 替换为映射后的距离 <span class="math inline">\(\delta(i, j)\)</span>：</p>
 <p><span class="math display">\[
 s_{\delta}(i,j) = \mathrm{Re}\left[ \sum_{t} \tilde{q}_i^{(t)}\, \overline{\tilde{k}_j^{(t)}}\, \exp(\mathrm{i}\, \delta(i,j)\, \theta_t) \right], \qquad j \le i.
 \]</span></p>
 <p>它们都会保留邻近词元的精确距离，因为语言建模依赖这一点；对于远处词元，则采用更粗粒度的距离。它们的区别在于粗到什么程度。</p>
 <h3 id="rerope">2.2.1 ReRoPE</h3>
-<p><strong>符号说明</strong></p>
+<details class="notation-guide" style="margin:1em 0"><summary style="cursor:pointer;font-weight:600;padding:.4em 0;display:list-item">符号说明</summary>
 <div style="overflow-x:auto"><table>
 <thead>
 <tr class="header">
@@ -705,6 +720,7 @@ s_{\delta}(i,j) = \mathrm{Re}\left[ \sum_{t} \tilde{q}_i^{(t)}\, \overline{\tild
 </tr>
 </tbody>
 </table></div>
+</details>
 <p>修正旋转位置嵌入（Rectified RoPE）<a href="#ref-16">16</a> 是最粗粒度的一种情形。它将距离限制在窗口 <span class="math inline">\(w &lt; L\)</span> 以内，因此所有距离超过 <span class="math inline">\(w\)</span> 的词元看起来都一样远：</p>
 <p><span class="math display">\[
 \delta(i,j) = \min(i - j, w).
@@ -712,7 +728,7 @@ s_{\delta}(i,j) = \mathrm{Re}\left[ \sum_{t} \tilde{q}_i^{(t)}\, \overline{\tild
 <p>在 Llama 2 13B 上，取 <span class="math inline">\(w = 1024\)</span> 时，4k / 8k / 16k 长度下的损失分别为 1.50 / 1.43 / 1.40；而普通 RoPE 的损失会从 4k 时的 1.50 跃升至 8k 时的 8.86。它的实现需要计算两遍注意力，而且在 An 等人 <a href="#ref-17">17</a> 发表论文时，尚不兼容 FlashAttention。</p>
 <p>这是一项工程限制，而非算法本身的限制。ReRoPE 需要为每个查询—键对计算两个注意力得分：一个采用普通 RoPE，另一个采用固定距离 <span class="math inline">\(w\)</span>，然后在 softmax 之前选择其中一个。标准 FlashAttention 内核不会暴露这些得分，因此需要定制内核，或合并多次标准注意力调用的结果。Jet-Long（2.3.2）恰好针对类似的近处／远处分离采用了这种做法，并保留了 FlashAttention-3 预填充吞吐量的 83–88%。</p>
 <h3 id="self-extend">2.2.2 Self-Extend</h3>
-<p><strong>符号说明</strong></p>
+<details class="notation-guide" style="margin:1em 0"><summary style="cursor:pointer;font-weight:600;padding:.4em 0;display:list-item">符号说明</summary>
 <div style="overflow-x:auto"><table>
 <thead>
 <tr class="header">
@@ -739,6 +755,7 @@ s_{\delta}(i,j) = \mathrm{Re}\left[ \sum_{t} \tilde{q}_i^{(t)}\, \overline{\tild
 </tr>
 </tbody>
 </table></div>
+</details>
 <p>Jin 等人 <a href="#ref-18">18</a> 没有让所有远处词元共用一个距离，而是将它们分组：给定邻近窗口 <span class="math inline">\(w\)</span> 和分组大小 <span class="math inline">\(G\)</span>，同一组中的词元共享位置 <span class="math inline">\(\lfloor i / G \rfloor\)</span>：</p>
 <p><span class="math display">\[
 \delta(i,j) =
@@ -756,7 +773,7 @@ i - j &amp; i - j \le w \\
 <p><span class="math inline">\(G\)</span> 根据目标长度 <span class="math inline">\(L&#39;\)</span> 预先选定：要覆盖 <span class="math inline">\(L&#39;\)</span>，需要 <span class="math inline">\((L - w)G + w \ge L&#39;\)</span>，即 <span class="math inline">\(G \ge (L&#39; - w)/(L - w)\)</span>。例如，对于 <span class="math inline">\(L = 4096\)</span>、<span class="math inline">\(w = 1024\)</span> 的 Llama 2，要扩展到 16k，就需要 <span class="math inline">\(G \ge 5\)</span>。由于 <span class="math inline">\(G\)</span> 固定，而且分组由绝对位置 <span class="math inline">\(\lfloor j/G \rfloor\)</span> 决定，已缓存的键所属的组不会随序列增长而改变，因此它按分组位置旋转后的结果也可以缓存。代价是需要计算两组注意力得分（邻近得分和分组得分），再在 softmax 之前合并。</p>
 <p>无需微调，Llama-2-7B-chat 在 PG-19 上的困惑度直到长度 12288 都维持在 9 左右，而原模型从 6144 开始就超过 <span class="math inline">\(10^3\)</span>。Mistral 7B 在口令检索任务上的准确率达到 100%；相比之下，滑动窗口虽然困惑度较低，却无法检索窗口以外的任何内容，因此低困惑度本身并不能证明长上下文能力。</p>
 <h3 id="双分块注意力dca">2.2.3 双分块注意力（DCA）</h3>
-<p><strong>符号说明</strong></p>
+<details class="notation-guide" style="margin:1em 0"><summary style="cursor:pointer;font-weight:600;padding:.4em 0;display:list-item">符号说明</summary>
 <div style="overflow-x:auto"><table>
 <thead>
 <tr class="header">
@@ -783,6 +800,7 @@ i - j &amp; i - j \le w \\
 </tr>
 </tbody>
 </table></div>
+</details>
 <p>An 等人 <a href="#ref-17">17</a> 将序列划分为大小为 <span class="math inline">\(c &lt; L\)</span> 的块。令 <span class="math inline">\(a = i \bmod c\)</span>、<span class="math inline">\(b = j \bmod c\)</span> 分别表示各自块内的位置，</p>
 <p><span class="math display">\[
 \delta(i,j) =
@@ -797,7 +815,7 @@ L - 1 - b &amp; \lfloor i/c \rfloor - \lfloor j/c \rfloor &gt; 1 \quad \text{(in
 <p>实现时，每个键只在其块内位置 <span class="math inline">\(b\)</span> 旋转一次，然后缓存。每个查询则分别旋转到三个位置：<span class="math inline">\(a\)</span>、<span class="math inline">\(\min(c + a, L - 1)\)</span> 和 <span class="math inline">\(L - 1\)</span>，并根据键所在的块选用相应版本。这三种情形覆盖互不相交的键集合（同一块、前一块、更早的块），因此可以通过三次标准 FlashAttention 调用计算注意力，再利用它们的 log-sum-exp 统计量合并，总计算成本与全注意力相同。</p>
 <p>DCA 可以叠加在采用 PI 或 NTK 感知缩放的模型之上。无需微调，它就能将 Llama 2 70B 从 4k 扩展到 96k，困惑度仅增加 0.56。</p>
 <h3 id="按维度操作位置嵌入dpe">2.2.4 按维度操作位置嵌入（DPE）</h3>
-<p><strong>符号说明</strong></p>
+<details class="notation-guide" style="margin:1em 0"><summary style="cursor:pointer;font-weight:600;padding:.4em 0;display:list-item">符号说明</summary>
 <div style="overflow-x:auto"><table>
 <colgroup>
 <col style="width: 50%" />
@@ -836,6 +854,7 @@ L - 1 - b &amp; \lfloor i/c \rfloor - \lfloor j/c \rfloor &gt; 1 \quad \text{(in
 </tr>
 </tbody>
 </table></div>
+</details>
 <p>上述方法对所有频带采用相同的 <span class="math inline">\(\delta\)</span>。Lu 等人 <a href="#ref-19">19</a> 则分别重新映射各个频带，其依据是他们在 Llama 3 8B 上的两个发现：</p>
 <ul>
 <li>不同频带的有效长度不同：当距离超出训练范围时，最快和最慢的频带仍然有效，而中间频带会立即失效。</li>
@@ -853,7 +872,7 @@ i - j &amp; \text{otherwise,}
 <p>其中 <span class="math inline">\(l\)</span> 是序列长度。无需微调，DPE 将 Llama 3 8B 从 8k 扩展到 128k，在“大海捞针”（Needle-in-a-Haystack）任务上的准确率达到 92.5%（Self-Extend：89.5%，ReRoPE：78%，DCA：53%，YaRN：0%）。</p>
 <p>YaRN 对最慢的频带采用完整插值，而 DPE 的发现不同：这些频带能够容忍更长的距离。一个可能的解释是（并非来自论文）：Llama 3 采用底数 <span class="math inline">\(500000\)</span>，而非 <span class="math inline">\(10000\)</span>，因此最慢的频带（最后一组，<span class="math inline">\(t \ge 56\)</span>）即使在 128k 时也转不到四分之一圈；相比之下，中间频带在 8k 内最多只旋转几圈，到 128k 时却会多转很多圈。</p>
 <h2 id="随当前长度动态调整">2.3 随当前长度动态调整</h2>
-<p><strong>符号说明</strong></p>
+<details class="notation-guide" style="margin:1em 0"><summary style="cursor:pointer;font-weight:600;padding:.4em 0;display:list-item">符号说明</summary>
 <div style="overflow-x:auto"><table>
 <thead>
 <tr class="header">
@@ -868,9 +887,10 @@ i - j &amp; \text{otherwise,}
 </tr>
 </tbody>
 </table></div>
+</details>
 <p>上述方法预先固定 <span class="math inline">\(s\)</span> 或 <span class="math inline">\(G\)</span>，其中存在一种权衡：取值过大会损害短输入的表现，取值过小又会在长输入上失效。另一种做法是让参数随当前序列长度 <span class="math inline">\(l\)</span> 动态调整，使模型在 <span class="math inline">\(l \le L\)</span> 时保持不变。</p>
 <h3 id="动态缩放">2.3.1 动态缩放</h3>
-<p><strong>符号说明</strong></p>
+<details class="notation-guide" style="margin:1em 0"><summary style="cursor:pointer;font-weight:600;padding:.4em 0;display:list-item">符号说明</summary>
 <div style="overflow-x:auto"><table>
 <thead>
 <tr class="header">
@@ -885,6 +905,7 @@ i - j &amp; \text{otherwise,}
 </tr>
 </tbody>
 </table></div>
+</details>
 <p>频率缩放类方法可以在每次前向传播时更新 <span class="math inline">\(s\)</span>，使模型在超出 <span class="math inline">\(L&#39;\)</span> 后逐步退化，而不是突然失效：</p>
 <p><span class="math display">\[
 s = \max(1, l / L).
@@ -894,7 +915,7 @@ s = \max(1, l / L).
 <p>动态 NTK 和动态 YaRN 就是 NTK 和 YaRN 的动态版本。它们每次前向传播都需要旋转所有键。</p>
 </blockquote>
 <h3 id="jet-long">2.3.2 Jet-Long</h3>
-<p><strong>符号说明</strong></p>
+<details class="notation-guide" style="margin:1em 0"><summary style="cursor:pointer;font-weight:600;padding:.4em 0;display:list-item">符号说明</summary>
 <div style="overflow-x:auto"><table>
 <colgroup>
 <col style="width: 50%" />
@@ -925,6 +946,7 @@ s = \max(1, l / L).
 </tr>
 </tbody>
 </table></div>
+</details>
 <p>Tang 等人 <a href="#ref-21">21</a> 将这一思路应用于分组。他们采用能够让所有位置都保持在范围内的最小分组大小：</p>
 <p><span class="math display">\[
 G = \max\left(1, \lceil l / L \rceil\right), \qquad

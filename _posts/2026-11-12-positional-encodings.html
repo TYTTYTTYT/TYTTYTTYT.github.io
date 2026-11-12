@@ -19,7 +19,7 @@ translations:
 <p>This post reviews common positional encoding methods and approaches to extending the context length of language models, from sinusoidal embeddings and relative position biases to RoPE and its extensions. Alongside their mathematical formulations, I share my understanding of how these methods encode position, interact with token content, and behave beyond the training context length—why they work, where they fail, and what their limitations reveal. The aim is to connect the intuition behind positional encodings with the design choices and trade-offs of context extension.</p>
 <h1 id="position-encodings">1. Position Encodings</h1>
 <h2 id="sinusoidal-position-encoding">1.1 Sinusoidal position encoding</h2>
-<p><strong>Notation</strong></p>
+<details class="notation-guide" style="margin:1em 0"><summary style="cursor:pointer;font-weight:600;padding:.4em 0;display:list-item">Notation</summary>
 <div style="overflow-x:auto"><table>
 <colgroup>
 <col style="width: 50%" />
@@ -58,6 +58,7 @@ translations:
 </tr>
 </tbody>
 </table></div>
+</details>
 <p>The original Transformer<a href="#ref-1">1</a> adds a fixed encoding to the token embedding at each position <span class="math inline">\(pos\)</span>. For <span class="math inline">\(i = 0, \dots, d/2-1\)</span>, where <span class="math inline">\(d\)</span> is the model dimension,</p>
 <p><span class="math display">\[
 \mathrm{PE}(pos, 2i) = \sin\left(\frac{pos}{10000^{2i/d}}\right), \qquad \mathrm{PE}(pos, 2i + 1) = \cos\left(\frac{pos}{10000^{2i/d}}\right).
@@ -74,7 +75,7 @@ translations:
 <li>The number of positions is fixed at training time, so the model cannot take longer inputs at all</li>
 </ul>
 <h2 id="t5-relative-bias5">1.3 T5 relative bias<a href="#ref-5">5</a></h2>
-<p><strong>Notation</strong></p>
+<details class="notation-guide" style="margin:1em 0"><summary style="cursor:pointer;font-weight:600;padding:.4em 0;display:list-item">Notation</summary>
 <div style="overflow-x:auto"><table>
 <colgroup>
 <col style="width: 50%" />
@@ -129,6 +130,7 @@ translations:
 </tr>
 </tbody>
 </table></div>
+</details>
 <p>T5 doesn’t add positional embeddings to individual positions, but directly adds a bias to each logit. The bias is determined by the relative position.</p>
 <p>For position <span class="math inline">\(i\)</span> and <span class="math inline">\(j\)</span> at layer <span class="math inline">\(l\)</span> and head <span class="math inline">\(h\)</span>, the logit <span class="math inline">\(s_{i, j}^{(h, l)}\)</span> is defined as</p>
 <p><span class="math display">\[
@@ -176,7 +178,7 @@ s(i, j)^{(l,h)} = (q_i^{(l,h)})^\top k_j^{(l,h)} + b_{\textrm{bucket}(\mid i-j\m
 </table></div>
 <p><br /></p>
 <h3 id="t5-relative-bias-is-a-biased-nope">1.3.1 T5 relative bias is a biased NoPE</h3>
-<p><strong>Notation</strong></p>
+<details class="notation-guide" style="margin:1em 0"><summary style="cursor:pointer;font-weight:600;padding:.4em 0;display:list-item">Notation</summary>
 <div style="overflow-x:auto"><table>
 <colgroup>
 <col style="width: 50%" />
@@ -203,6 +205,7 @@ s(i, j)^{(l,h)} = (q_i^{(l,h)})^\top k_j^{(l,h)} + b_{\textrm{bucket}(\mid i-j\m
 </tr>
 </tbody>
 </table></div>
+</details>
 <blockquote>
 <p>💡 <strong>My thinking about relative bias</strong></p>
 <p>For additive position encodings <span class="math inline">\(p\)</span>, adding them to <span class="math inline">\(q\)</span> and <span class="math inline">\(k\)</span> is equivalent to adding biases to the logits:</p>
@@ -217,7 +220,7 @@ s(i, j)^{(l,h)} = (q_i^{(l,h)})^\top k_j^{(l,h)} + b_{\textrm{bucket}(\mid i-j\m
 <p>But why does the T5 relative bias still work without this semantic dependency? One reason is that the model can build it across layers: a head with a strong local bias can copy the previous token into the current hidden state, so later layers already see position-aware content in <span class="math inline">\(q\)</span> and <span class="math inline">\(k\)</span>. In a causal decoder, the causal mask also leaks order information, since a token can infer its position from how many tokens it can see. This is why causal language models without any positional encoding (NoPE) still learn positional information<a href="#ref-7">7</a>.</p>
 <p>So basically, the T5 relative bias is NoPE plus a learned, per-head bias on the bucketed relative distance. This bias is not constrained to decay with distance, and all distances beyond <span class="math inline">\(D\)</span> share the last bucket</p>
 <h2 id="rotary-position-embedding-rope">1.4 Rotary position embedding (RoPE)</h2>
-<p><strong>Notation</strong></p>
+<details class="notation-guide" style="margin:1em 0"><summary style="cursor:pointer;font-weight:600;padding:.4em 0;display:list-item">Notation</summary>
 <div style="overflow-x:auto"><table>
 <colgroup>
 <col style="width: 50%" />
@@ -248,13 +251,14 @@ s(i, j)^{(l,h)} = (q_i^{(l,h)})^\top k_j^{(l,h)} + b_{\textrm{bucket}(\mid i-j\m
 </tr>
 </tbody>
 </table></div>
+</details>
 <p>As shown above, additive position encodings generally make the logits depend on the absolute positions, while the T5 relative bias lacks the semantic-position interaction. Su et al. <a href="#ref-6">6</a> later proposed RoPE, which keeps this interaction but makes it depend only on the relative position, while being more expressive than bucketed biases.</p>
 <p>The target of RoPE is to encode positions such that the logit <span class="math inline">\(s(i,j)\)</span> is a function of the contents and the relative distance only</p>
 <p><span class="math display">\[
 s_{\textrm{RoPE}}(i,j) = f(q_i, i)^{\top} f(k_j, j) = g(q_i, k_j, i-j)
 \]</span></p>
 <h3 id="intuition-behind-rope">1.4.1 Intuition behind RoPE</h3>
-<p><strong>Notation</strong></p>
+<details class="notation-guide" style="margin:1em 0"><summary style="cursor:pointer;font-weight:600;padding:.4em 0;display:list-item">Notation</summary>
 <div style="overflow-x:auto"><table>
 <colgroup>
 <col style="width: 50%" />
@@ -289,6 +293,7 @@ s_{\textrm{RoPE}}(i,j) = f(q_i, i)^{\top} f(k_j, j) = g(q_i, k_j, i-j)
 </tr>
 </tbody>
 </table></div>
+</details>
 <p>Any complex number can be expressed by a modulus (length) <span class="math inline">\(c\)</span> and an angle <span class="math inline">\(\theta\)</span> from the positive real axis</p>
 <p><span class="math display">\[
 z = c\exp(\mathrm{i}\theta)
@@ -307,7 +312,7 @@ z_1 \times \bar{z}_2 = c_1 c_2 \exp(\mathrm{i}(\theta_1 - \theta_2))
 <figcaption aria-hidden="true">Multiplying two complex numbers: lengths multiply, angles add</figcaption>
 </figure>
 <h3 id="rope">1.4.2 RoPE</h3>
-<p><strong>Notation</strong></p>
+<details class="notation-guide" style="margin:1em 0"><summary style="cursor:pointer;font-weight:600;padding:.4em 0;display:list-item">Notation</summary>
 <div style="overflow-x:auto"><table>
 <colgroup>
 <col style="width: 50%" />
@@ -342,6 +347,7 @@ z_1 \times \bar{z}_2 = c_1 c_2 \exp(\mathrm{i}(\theta_1 - \theta_2))
 </tr>
 </tbody>
 </table></div>
+</details>
 <p>For simplicity, we introduce RoPE with a single-head attention and ignore the attention mask (causal mask).</p>
 <p>Let <span class="math inline">\(q_i, k_j \in \mathbb{R}^{d}\)</span> (<span class="math inline">\(d\)</span> even) be the query at position <span class="math inline">\(i\)</span> and the key at position <span class="math inline">\(j\)</span>. Split the dimensions into <span class="math inline">\(d/2\)</span> pairs <span class="math inline">\((2t, 2t+1)\)</span> and view each pair as a complex number <span class="math inline">\(\tilde{q}_i^{(t)} = q_{i,2t} + \mathrm{i}\, q_{i,2t+1}\)</span> (same for <span class="math inline">\(\tilde{k}_j^{(t)}\)</span>), with frequency <span class="math inline">\(\theta_t = 10000^{-2t/d}\)</span>, <span class="math inline">\(t = 0, \dots, d/2-1\)</span>.</p>
 <p><strong>Transformation.</strong> Rotate pair <span class="math inline">\(t\)</span> by the angle (position <span class="math inline">\(\times\, \theta_t\)</span>):</p>
@@ -354,7 +360,7 @@ s_{\textrm{RoPE}}(i,j) = \mathrm{Re}\left[ \sum_{t=0}^{d/2-1} f(q_i, i)^{(t)}\, 
 \]</span></p>
 <p>which depends on the positions only through <span class="math inline">\(i - j\)</span>.</p>
 <h3 id="implementation-of-rope">1.4.3 Implementation of RoPE</h3>
-<p><strong>Notation</strong></p>
+<details class="notation-guide" style="margin:1em 0"><summary style="cursor:pointer;font-weight:600;padding:.4em 0;display:list-item">Notation</summary>
 <div style="overflow-x:auto"><table>
 <colgroup>
 <col style="width: 50%" />
@@ -393,6 +399,7 @@ s_{\textrm{RoPE}}(i,j) = \mathrm{Re}\left[ \sum_{t=0}^{d/2-1} f(q_i, i)^{(t)}\, 
 </tr>
 </tbody>
 </table></div>
+</details>
 <p>The product of two complex numbers could be expressed as</p>
 <p><span class="math display">\[
 \begin{align}
@@ -435,7 +442,7 @@ s_{\textrm{RoPE}}(i,j) = \mathrm{Re}\left[ \sum_{t=0}^{d/2-1} f(q_i, i)^{(t)}\, 
 <p>In my understanding, RoPE succeeds because it provides a positional bias that depends on both the semantics and the relative distance, but not on the absolute positions (see 1.3).</p>
 </blockquote>
 <h2 id="xpos">1.5 XPos</h2>
-<p><strong>Notation</strong></p>
+<details class="notation-guide" style="margin:1em 0"><summary style="cursor:pointer;font-weight:600;padding:.4em 0;display:list-item">Notation</summary>
 <div style="overflow-x:auto"><table>
 <colgroup>
 <col style="width: 50%" />
@@ -470,6 +477,7 @@ s_{\textrm{RoPE}}(i,j) = \mathrm{Re}\left[ \sum_{t=0}^{d/2-1} f(q_i, i)^{(t)}\, 
 </tr>
 </tbody>
 </table></div>
+</details>
 <p>Previously, people thought that models cannot work beyond the training length because of the absolute position encoding. However, RoPE-based models, although they remove the dependence on absolute positions, still cannot work beyond the training length.</p>
 <p>Sun et al. <a href="#ref-9">9</a>attribute this to the fast-rotating bands: at large distances they make the logits oscillate instead of decaying, which adds noise to attention and hinders the extrapolation of RoPE. Thus, they add an explicit distance decay to RoPE. Each dimension pair <span class="math inline">\(t = 0, \dots, d/2-1\)</span> (the same pair index as in 1.4.2, so small <span class="math inline">\(t\)</span> means a fast band) gets a decay rate</p>
 <p><span class="math display">\[
@@ -487,7 +495,7 @@ s_{\textrm{XPos}}(i,j) = \mathrm{Re}\left[ \sum_{t} \tilde{q}_i^{(t)}\, \overlin
 <p><strong>However</strong>, the experiments are small: a model comparable to GPT-3 Medium (24 layers, 1024 hidden) is trained from scratch with length 1024 and evaluated on arXiv only up to 4096, i.e. 4× the training length. With blockwise causal attention, the perplexity keeps dropping (23.31 → 21.6 → 20.73 at 1024 / 2048 / 4096), but plain RoPE with blockwise causal attention also stops exploding (25.57 / 25.65 vs. 73.6 / 294.45 without it). <strong>Without it, XPos still degrades (22.56 at 2048, 28.43 at 4096), so the decay alone does not solve extrapolation, and much of the gain comes from the windowed attention.</strong></p>
 <p>Decay the fast bands may help far tokens, but it’s better to preserve the fast bands in recent tokens.</p>
 <h2 id="attention-with-linear-biases-alibi">1.6 Attention with linear biases (ALiBi)</h2>
-<p><strong>Notation</strong></p>
+<details class="notation-guide" style="margin:1em 0"><summary style="cursor:pointer;font-weight:600;padding:.4em 0;display:list-item">Notation</summary>
 <div style="overflow-x:auto"><table>
 <colgroup>
 <col style="width: 50%" />
@@ -518,6 +526,7 @@ s_{\textrm{XPos}}(i,j) = \mathrm{Re}\left[ \sum_{t} \tilde{q}_i^{(t)}\, \overlin
 </tr>
 </tbody>
 </table></div>
+</details>
 <p>Similar to XPos (though published earlier), Press et al. <a href="#ref-10">10</a> proposed ALiBi to decay the attention scores of far tokens. ALiBi adds no position embedding to <span class="math inline">\(q\)</span> or <span class="math inline">\(k\)</span>; instead it adds a fixed, non-learned linear penalty to each logit:</p>
 <p><span class="math display">\[
 s_{\textrm{ALiBi}}(i,j) = q_i^\top k_j - m_h\,(i-j), \qquad j \le i,
@@ -527,7 +536,7 @@ s_{\textrm{ALiBi}}(i,j) = q_i^\top k_j - m_h\,(i-j), \qquad j \le i,
 <h3 id="alibi-is-a-nope-with-distance-decay">1.6.1 ALiBi is a NoPE with distance decay</h3>
 <p>The positional bias <span class="math inline">\(-m_h\,(i-j)\)</span> depends only on the relative distance, not on the semantics. Like the T5 relative bias, ALiBi is therefore NoPE plus a relative bias, but here the bias is fixed and always decays with distance. Since the decay is strong in most heads, far tokens are largely ignored and the model behaves like a streaming LLM. Thus, ALiBi is functionally similar to a streaming NoPE, except that the heads with the smallest slopes can still see far tokens.</p>
 <h1 id="training-free-context-extension">2. Training-free Context Extension</h1>
-<p><strong>Notation</strong></p>
+<details class="notation-guide" style="margin:1em 0"><summary style="cursor:pointer;font-weight:600;padding:.4em 0;display:list-item">Notation</summary>
 <div style="overflow-x:auto"><table>
 <colgroup>
 <col style="width: 50%" />
@@ -554,13 +563,14 @@ s_{\textrm{ALiBi}}(i,j) = q_i^\top k_j - m_h\,(i-j), \qquad j \le i,
 </tr>
 </tbody>
 </table></div>
+</details>
 <p>A RoPE model trained with context length <span class="math inline">\(L\)</span> fails on longer inputs mainly because the angle <span class="math inline">\((i-j)\theta_t\)</span> in the logit</p>
 <p><span class="math display">\[
 s_{\textrm{RoPE}}(i,j) = \mathrm{Re}\left[ \sum_{t} \tilde{q}_i^{(t)}\, \overline{\tilde{k}_j^{(t)}}\, \exp(\mathrm{i}(i-j)\theta_t) \right]
 \]</span></p>
 <p>leaves the range seen during training. To use the model at length <span class="math inline">\(L&#39; = sL\)</span> (<span class="math inline">\(s &gt; 1\)</span>) without changing its architecture, we can change the frequencies <span class="math inline">\(\theta_t\)</span> (2.1) or the distance <span class="math inline">\(i - j\)</span> (2.2). Either can also follow the current sequence length instead of being fixed up front (2.3).</p>
 <h2 id="rescaling-the-frequencies">2.1 Rescaling the frequencies</h2>
-<p><strong>Notation</strong></p>
+<details class="notation-guide" style="margin:1em 0"><summary style="cursor:pointer;font-weight:600;padding:.4em 0;display:list-item">Notation</summary>
 <div style="overflow-x:auto"><table>
 <colgroup>
 <col style="width: 50%" />
@@ -579,9 +589,10 @@ s_{\textrm{RoPE}}(i,j) = \mathrm{Re}\left[ \sum_{t} \tilde{q}_i^{(t)}\, \overlin
 </tr>
 </tbody>
 </table></div>
+</details>
 <p>These methods slow down the rotation speed <span class="math inline">\(\theta_t\)</span> to <span class="math inline">\(\theta&#39;_t\)</span>. They differ in how much each band is scaled.</p>
 <h3 id="position-interpolation-pi">2.1.1 Position Interpolation (PI)</h3>
-<p><strong>Notation</strong></p>
+<details class="notation-guide" style="margin:1em 0"><summary style="cursor:pointer;font-weight:600;padding:.4em 0;display:list-item">Notation</summary>
 <div style="overflow-x:auto"><table>
 <thead>
 <tr class="header">
@@ -600,13 +611,14 @@ s_{\textrm{RoPE}}(i,j) = \mathrm{Re}\left[ \sum_{t} \tilde{q}_i^{(t)}\, \overlin
 </tr>
 </tbody>
 </table></div>
+</details>
 <p>Chen et al. <a href="#ref-11">11</a> and, concurrently, kaiokendev <a href="#ref-12">12</a> scale all bands equally:</p>
 <p><span class="math display">\[
 \theta&#39;_t = \frac{\theta_t}{s}.
 \]</span></p>
 <p>Position <span class="math inline">\(m\)</span> now has the angles of position <span class="math inline">\(m/s\)</span>, so all positions up to <span class="math inline">\(L&#39;\)</span> stay in the seen range. However, nearby tokens now differ by only <span class="math inline">\(1/s\)</span> of a position, so the fast bands lose resolution and PI relies on fine-tuning to recover it. With fine-tuning within 1000 steps, LLaMA is extended to 32768.</p>
 <h3 id="ntk-aware-scaling">2.1.2 NTK-aware scaling</h3>
-<p><strong>Notation</strong></p>
+<details class="notation-guide" style="margin:1em 0"><summary style="cursor:pointer;font-weight:600;padding:.4em 0;display:list-item">Notation</summary>
 <div style="overflow-x:auto"><table>
 <thead>
 <tr class="header">
@@ -625,13 +637,14 @@ s_{\textrm{RoPE}}(i,j) = \mathrm{Re}\left[ \sum_{t} \tilde{q}_i^{(t)}\, \overlin
 </tr>
 </tbody>
 </table></div>
+</details>
 <p>To keep the fast bands, bloc97 <a href="#ref-13">13</a> scale the bands non-uniformly, motivated by the NTK analysis of Fourier features <a href="#ref-14">14</a>: high-frequency inputs are needed to learn high-frequency functions. This is done by enlarging the base in <span class="math inline">\(\theta_t\)</span>, which is equivalent to</p>
 <p><span class="math display">\[
 \theta&#39;_t = \theta_t \cdot s^{-2t/(d-2)}.
 \]</span></p>
 <p>The fastest band is unchanged and only the slowest band is scaled by the full <span class="math inline">\(1/s\)</span>. This works much better than PI without fine-tuning. However, the other bands are scaled by less than <span class="math inline">\(1/s\)</span>, so some of them still reach out-of-bound angles: Peng et al. <a href="#ref-4">4</a> report that it is inferior to PI after fine-tuning, and that <span class="math inline">\(s\)</span> must be set higher than the expected extension.</p>
 <h3 id="yarn">2.1.3 YaRN</h3>
-<p><strong>Notation</strong></p>
+<details class="notation-guide" style="margin:1em 0"><summary style="cursor:pointer;font-weight:600;padding:.4em 0;display:list-item">Notation</summary>
 <div style="overflow-x:auto"><table>
 <colgroup>
 <col style="width: 50%" />
@@ -670,6 +683,7 @@ s_{\textrm{RoPE}}(i,j) = \mathrm{Re}\left[ \sum_{t} \tilde{q}_i^{(t)}\, \overlin
 </tr>
 </tbody>
 </table></div>
+</details>
 <p>Peng et al. <a href="#ref-4">4</a> scale each band according to how many turns it makes during the training context length, <span class="math inline">\(r_t = L / \lambda_t\)</span>, where <span class="math inline">\(\lambda_t = 2\pi / \theta_t\)</span> is its wavelength. This NTK-by-parts interpolation <a href="#ref-15">15</a> is</p>
 <p><span class="math display">\[
 \theta&#39;_t = (1 - \gamma_t)\, \frac{\theta_t}{s} + \gamma_t\, \theta_t, \qquad \gamma_t = \min\left(1, \max\left(0, \frac{r_t - \alpha}{\beta - \alpha}\right)\right),
@@ -685,7 +699,7 @@ Both methods scale the rotation speed of each band by a factor between <span cla
 \]</span></p>
 <p>Llama 2 7B / 13B (trained on 4096) reach 64k (<span class="math inline">\(s = 16\)</span>) with 400 fine-tuning steps and 128k (<span class="math inline">\(s = 32\)</span>) with 200 more, using about 0.1% of the pre-training data.</p>
 <h2 id="remapping-the-relative-distance">2.2 Remapping the relative distance</h2>
-<p><strong>Notation</strong></p>
+<details class="notation-guide" style="margin:1em 0"><summary style="cursor:pointer;font-weight:600;padding:.4em 0;display:list-item">Notation</summary>
 <div style="overflow-x:auto"><table>
 <colgroup>
 <col style="width: 50%" />
@@ -708,13 +722,14 @@ Both methods scale the rotation speed of each band by a factor between <span cla
 </tr>
 </tbody>
 </table></div>
+</details>
 <p>These methods keep <span class="math inline">\(\theta_t\)</span> and replace <span class="math inline">\(i - j\)</span> with a mapped distance <span class="math inline">\(\delta(i, j)\)</span>:</p>
 <p><span class="math display">\[
 s_{\delta}(i,j) = \mathrm{Re}\left[ \sum_{t} \tilde{q}_i^{(t)}\, \overline{\tilde{k}_j^{(t)}}\, \exp(\mathrm{i}\, \delta(i,j)\, \theta_t) \right], \qquad j \le i.
 \]</span></p>
 <p>They all keep the exact distance for nearby tokens, which language modeling depends on, and give far tokens a coarser distance. They differ in how coarse it is.</p>
 <h3 id="rerope">2.2.1 ReRoPE</h3>
-<p><strong>Notation</strong></p>
+<details class="notation-guide" style="margin:1em 0"><summary style="cursor:pointer;font-weight:600;padding:.4em 0;display:list-item">Notation</summary>
 <div style="overflow-x:auto"><table>
 <colgroup>
 <col style="width: 50%" />
@@ -737,6 +752,7 @@ s_{\delta}(i,j) = \mathrm{Re}\left[ \sum_{t} \tilde{q}_i^{(t)}\, \overline{\tild
 </tr>
 </tbody>
 </table></div>
+</details>
 <p>Rectified RoPE <a href="#ref-16">16</a> is the coarsest case. It caps the distance at a window <span class="math inline">\(w &lt; L\)</span>, so all tokens beyond <span class="math inline">\(w\)</span> look equally far:</p>
 <p><span class="math display">\[
 \delta(i,j) = \min(i - j, w).
@@ -744,7 +760,7 @@ s_{\delta}(i,j) = \mathrm{Re}\left[ \sum_{t} \tilde{q}_i^{(t)}\, \overline{\tild
 <p>On Llama 2 13B with <span class="math inline">\(w = 1024\)</span>, the loss is 1.50 / 1.43 / 1.40 at 4k / 8k / 16k, while plain RoPE jumps from 1.50 at 4k to 8.86 at 8k. Its implementation needs two attention passes and, at the time of An et al. <a href="#ref-17">17</a>, was not compatible with FlashAttention.</p>
 <p>This is an engineering limitation rather than an algorithmic one. ReRoPE needs two logits per query-key pair, the usual RoPE one and one with the fixed distance <span class="math inline">\(w\)</span>, and picks one of them before the softmax. The stock FlashAttention kernel does not expose the logits, so this needs a custom kernel or a merge of several standard attention calls. Jet-Long (2.3.2) does exactly this for a similar local / remote split and keeps 83–88% of the FlashAttention-3 prefill throughput.</p>
 <h3 id="self-extend">2.2.2 Self-Extend</h3>
-<p><strong>Notation</strong></p>
+<details class="notation-guide" style="margin:1em 0"><summary style="cursor:pointer;font-weight:600;padding:.4em 0;display:list-item">Notation</summary>
 <div style="overflow-x:auto"><table>
 <thead>
 <tr class="header">
@@ -771,6 +787,7 @@ s_{\delta}(i,j) = \mathrm{Re}\left[ \sum_{t} \tilde{q}_i^{(t)}\, \overline{\tild
 </tr>
 </tbody>
 </table></div>
+</details>
 <p>Instead of one distance for all far tokens, Jin et al. <a href="#ref-18">18</a> group them: with a neighbor window <span class="math inline">\(w\)</span> and a group size <span class="math inline">\(G\)</span>, the tokens of a group share the position <span class="math inline">\(\lfloor i / G \rfloor\)</span>:</p>
 <p><span class="math display">\[
 \delta(i,j) =
@@ -788,7 +805,7 @@ i - j &amp; i - j \le w \\
 <p><span class="math inline">\(G\)</span> is chosen in advance from the target length <span class="math inline">\(L&#39;\)</span>: to cover <span class="math inline">\(L&#39;\)</span> we need <span class="math inline">\((L - w)G + w \ge L&#39;\)</span>, i.e. <span class="math inline">\(G \ge (L&#39; - w)/(L - w)\)</span>. For example, Llama 2 with <span class="math inline">\(L = 4096\)</span> and <span class="math inline">\(w = 1024\)</span> needs <span class="math inline">\(G \ge 5\)</span> for 16k. Since <span class="math inline">\(G\)</span> is fixed and groups are defined by absolute positions <span class="math inline">\(\lfloor j/G \rfloor\)</span>, the group of a cached key never changes as the sequence grows, so its grouped rotation can be cached as well. The cost is two sets of logits (neighbor and grouped) merged before the softmax.</p>
 <p>Without fine-tuning, the perplexity of Llama-2-7B-chat on PG-19 stays around 9 up to 12288, while the original model exceeds <span class="math inline">\(10^3\)</span> from 6144. Mistral 7B reaches 100% on passkey retrieval, whereas a sliding window has low perplexity but cannot retrieve anything outside the window, so low perplexity alone does not prove long-context ability.</p>
 <h3 id="dual-chunk-attention-dca">2.2.3 Dual Chunk Attention (DCA)</h3>
-<p><strong>Notation</strong></p>
+<details class="notation-guide" style="margin:1em 0"><summary style="cursor:pointer;font-weight:600;padding:.4em 0;display:list-item">Notation</summary>
 <div style="overflow-x:auto"><table>
 <colgroup>
 <col style="width: 50%" />
@@ -819,6 +836,7 @@ i - j &amp; i - j \le w \\
 </tr>
 </tbody>
 </table></div>
+</details>
 <p>An et al. <a href="#ref-17">17</a> split the sequence into chunks of size <span class="math inline">\(c &lt; L\)</span>. With <span class="math inline">\(a = i \bmod c\)</span> and <span class="math inline">\(b = j \bmod c\)</span> the positions inside each chunk,</p>
 <p><span class="math display">\[
 \delta(i,j) =
@@ -833,7 +851,7 @@ L - 1 - b &amp; \lfloor i/c \rfloor - \lfloor j/c \rfloor &gt; 1 \quad \text{(in
 <p>In implementation, each key is rotated once at its in-chunk position <span class="math inline">\(b\)</span> and cached. Each query is rotated to three positions, <span class="math inline">\(a\)</span>, <span class="math inline">\(\min(c + a, L - 1)\)</span> and <span class="math inline">\(L - 1\)</span>, and uses the one that matches the chunk of the key. The three cases cover disjoint sets of keys (same chunk, previous chunk, earlier chunks), so attention is computed as three standard FlashAttention calls merged by their log-sum-exp statistics, with the same total cost as full attention.</p>
 <p>DCA can be applied on top of PI or NTK-aware models. Without fine-tuning, it extends Llama 2 70B from 4k to 96k with a perplexity increase of 0.56.</p>
 <h3 id="dimension-wise-positional-embeddings-manipulation-dpe">2.2.4 Dimension-Wise Positional Embeddings Manipulation (DPE)</h3>
-<p><strong>Notation</strong></p>
+<details class="notation-guide" style="margin:1em 0"><summary style="cursor:pointer;font-weight:600;padding:.4em 0;display:list-item">Notation</summary>
 <div style="overflow-x:auto"><table>
 <colgroup>
 <col style="width: 50%" />
@@ -872,6 +890,7 @@ L - 1 - b &amp; \lfloor i/c \rfloor - \lfloor j/c \rfloor &gt; 1 \quad \text{(in
 </tr>
 </tbody>
 </table></div>
+</details>
 <p>The methods above apply the same <span class="math inline">\(\delta\)</span> to all bands. Lu et al. <a href="#ref-19">19</a> remap each band separately, based on two findings on Llama 3 8B:</p>
 <ul>
 <li>Bands have different effective lengths: the fastest and the slowest bands still work when the distance exceeds the training range, while the middle bands fail immediately.</li>
@@ -889,7 +908,7 @@ i - j &amp; \text{otherwise,}
 <p>where <span class="math inline">\(l\)</span> is the sequence length. Without fine-tuning, DPE extends Llama 3 8B from 8k to 128k with a Needle-in-a-Haystack accuracy of 92.5% (Self-Extend: 89.5%, ReRoPE: 78%, DCA: 53%, YaRN: 0%).</p>
 <p>Unlike YaRN, which fully interpolates the slowest bands, DPE finds that they tolerate longer distances. A possible explanation (not from the paper): with Llama 3’s base <span class="math inline">\(500000\)</span> (instead of <span class="math inline">\(10000\)</span>), the slowest bands (the last group, <span class="math inline">\(t \ge 56\)</span>) rotate less than a quarter turn even at 128k, while the middle bands make at most a few turns within 8k but many more at 128k.</p>
 <h2 id="following-the-current-length">2.3 Following the current length</h2>
-<p><strong>Notation</strong></p>
+<details class="notation-guide" style="margin:1em 0"><summary style="cursor:pointer;font-weight:600;padding:.4em 0;display:list-item">Notation</summary>
 <div style="overflow-x:auto"><table>
 <colgroup>
 <col style="width: 50%" />
@@ -908,9 +927,10 @@ i - j &amp; \text{otherwise,}
 </tr>
 </tbody>
 </table></div>
+</details>
 <p>The methods above fix <span class="math inline">\(s\)</span> or <span class="math inline">\(G\)</span> up front, which is a trade-off: a large value hurts short inputs, and a small value breaks on long inputs. Instead, the setting can follow the current sequence length <span class="math inline">\(l\)</span>, so that the model stays unchanged for <span class="math inline">\(l \le L\)</span>.</p>
 <h3 id="dynamic-scaling">2.3.1 Dynamic scaling</h3>
-<p><strong>Notation</strong></p>
+<details class="notation-guide" style="margin:1em 0"><summary style="cursor:pointer;font-weight:600;padding:.4em 0;display:list-item">Notation</summary>
 <div style="overflow-x:auto"><table>
 <colgroup>
 <col style="width: 50%" />
@@ -929,6 +949,7 @@ i - j &amp; \text{otherwise,}
 </tr>
 </tbody>
 </table></div>
+</details>
 <p>Frequency methods can update <span class="math inline">\(s\)</span> at every forward pass, so performance degrades gracefully instead of abruptly beyond <span class="math inline">\(L&#39;\)</span>:</p>
 <p><span class="math display">\[
 s = \max(1, l / L).
@@ -938,7 +959,7 @@ s = \max(1, l / L).
 <p>💡 Dynamic NTK and Dynamic-YaRN are just dynamic versions of NTK and YaRN. They need to rotate all keys for every pass.</p>
 </blockquote>
 <h3 id="jet-long">2.3.2 Jet-Long</h3>
-<p><strong>Notation</strong></p>
+<details class="notation-guide" style="margin:1em 0"><summary style="cursor:pointer;font-weight:600;padding:.4em 0;display:list-item">Notation</summary>
 <div style="overflow-x:auto"><table>
 <colgroup>
 <col style="width: 50%" />
@@ -969,6 +990,7 @@ s = \max(1, l / L).
 </tr>
 </tbody>
 </table></div>
+</details>
 <p>Tang et al. <a href="#ref-21">21</a> apply this idea to grouping. They use the smallest group size that keeps all positions in range:</p>
 <p><span class="math display">\[
 G = \max\left(1, \lceil l / L \rceil\right), \qquad
